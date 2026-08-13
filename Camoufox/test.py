@@ -492,8 +492,8 @@ def main() -> None:
         page.goto("https://example.com", wait_until="domcontentloaded")
         print(f'заголовок страницы: "{page.title()}"')
         page.close()
-
-        browser.close()
+        context.close()
+        # browser.close()
 
 
 if __name__ == "__main__":

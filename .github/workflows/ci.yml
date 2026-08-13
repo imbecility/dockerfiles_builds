@@ -285,6 +285,7 @@ jobs:
               --publish-port "$SERVICE_PORT:$SERVICE_PORT" \
               --http-probe-off \
               --show-clogs \
+              --continue-after host-exec \
               $SLIM_EXTRA_FLAGS \
               --host-exec "python -u $TEST_SCRIPT"
           else
