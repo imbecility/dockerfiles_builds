@@ -148,7 +148,10 @@ jobs:
       # 2. Устанавливаем SlimToolkit
       - name: Install SlimToolkit
         run: |
-          curl -sL https://raw.githubusercontent.com/slimtoolkit/slim/master/scripts/install-slim.sh | sudo -E bash
+          curl -sL "https://github.com/slimtoolkit/slim/releases/latest/download/dist_linux.tar.gz" -o /tmp/ds.tar.gz
+          tar -xvf /tmp/ds.tar.gz -C /tmp
+          sudo mv /tmp/dist_linux/slim /usr/local/bin/slim
+          sudo mv /tmp/dist_linux/slim-sensor /usr/local/bin/slim-sensor 2>/dev/null || true
           slim --version
 
       # 3. Запускаем автоматическую оптимизацию через SlimToolkit
