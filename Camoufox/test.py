@@ -455,7 +455,7 @@ def run_capability_smoke_test(context: BrowserContext) -> None:
     media_uris = make_media_data_uris()
     images = make_image_assets()
 
-    context.set_default_timeout(10000)
+    context.set_default_timeout(5000)
 
     run_step("about: внутренние страницы", test_firefox_internal_pages, context)
     run_step("варианты навигации (about/data/file)", test_navigation_variants, context)
@@ -478,7 +478,7 @@ def run_capability_smoke_test(context: BrowserContext) -> None:
     # придётся идти через about:debugging#/runtime/this-firefox и парсить DOM,
     # либо через about:addons (document.querySelectorAll в его shadow DOM).
 
-    context.set_default_timeout(90000)
+    context.set_default_timeout(30000)
 
 
 def main() -> None:
