@@ -150,8 +150,7 @@ jobs:
         run: |
           curl -sL "https://github.com/slimtoolkit/slim/releases/latest/download/dist_linux.tar.gz" -o /tmp/ds.tar.gz
           tar -xvf /tmp/ds.tar.gz -C /tmp
-          sudo mv /tmp/dist_linux/slim /usr/local/bin/slim
-          sudo mv /tmp/dist_linux/slim-sensor /usr/local/bin/slim-sensor 2>/dev/null || true
+          sudo cp -a /tmp/dist_linux/* /usr/local/bin/
           slim --version
 
       # 3. Запускаем автоматическую оптимизацию через SlimToolkit
