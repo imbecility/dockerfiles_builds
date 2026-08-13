@@ -14,7 +14,7 @@ if __name__ == "__main__":
         "os": ["windows", "macos"],
         "screen": Screen(max_width=1920, max_height=1080),
         "humanize": 1.5,
-        "geoip": False,
+        "geoip": True,
         "disable_coop": True,
         "allow_webgl": True,
         "enable_cache": True,

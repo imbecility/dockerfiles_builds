@@ -60,7 +60,7 @@ EOF
 
 COPY --chmod=755 <<-"EOF" /app/start.sh
 #!/bin/bash
-cat /app/resolv.conf > /etc/resolv.conf
+# cat /app/resolv.conf > /etc/resolv.conf
 touch /.dockerenv
 export HTTPX_LOG_LEVEL=warning
 export DISPLAY=:99
@@ -80,6 +80,7 @@ if ! xdpyinfo -display :99 >/dev/null 2>&1; then
 fi
 
 PORT="${PORT:-7860}"
+curl -sS 2ip.me
 echo -e "\n==================================\nstarting chromium cdp server...\nconnect:\nwith sync_playwright() as p:\n    browser = p.chromium.connect_over_cdp('http://host:port/?fingerprint=<seed>')\n==================================\n"
 exec /app/.venv/bin/cloakserve \
     --port="${PORT}" \
