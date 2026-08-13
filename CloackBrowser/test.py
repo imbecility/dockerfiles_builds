@@ -1,8 +1,8 @@
 import base64
 import io
-import os
 import shutil
 import subprocess
+import tempfile
 
 from pathlib import Path
 from urllib.parse import quote, urlencode
