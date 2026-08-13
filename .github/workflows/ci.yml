@@ -167,23 +167,45 @@ jobs:
           load: true
           tags: ${{ steps.names.outputs.service_lower }}:orig  # Использует нижний регистр (cloackbrowser:orig)
 
-      # Синхронизация версии playwright на раннере с той, что реально запечена в образе.
-      # Playwright-server (Camoufox) жёстко проверяет совпадение версий клиент/сервер: расхождение = "428 Precondition Required".
+      # Синхронизация версии playwright на раннере с версией сервера в образе.
+      # Camoufox жестко проверяет major.minor совпадение версий (расхождение -> 428 Precondition Required).
       - name: Sync Playwright Version With Image
         run: |
           IMAGE_PW_VERSION=$(docker run --rm "${{ steps.names.outputs.service_lower }}:orig" \
-            sh -c 'python -c "import playwright; print(playwright.__version__)" 2>/dev/null || /app/.venv/bin/python -c "import playwright; print(playwright.__version__)" 2>/dev/null || python3 -c "import playwright; print(playwright.__version__)" 2>/dev/null' || true)
-          
+            python -c "
+          try:
+              import playwright
+              print(playwright.__version__)
+          except ImportError:
+              try:
+                  import camoufox
+                  # Получаем версию Playwright, под которую собран camoufox/драйвер
+                  from camoufox.pkgman import get_driver_version
+                  print(get_driver_version())
+              except Exception:
+                  try:
+                      # Альтернативный fallback: парсинг package.json драйвера camoufox
+                      import glob, json
+                      pkg_files = glob.glob('/root/.cache/camoufox/**/package.json', recursive=True) + glob.glob('/app/.venv/**/camoufox/**/package.json', recursive=True)
+                      for f in pkg_files:
+                          data = json.load(open(f))
+                          if 'playwright' in data.get('name', '') or 'version' in data:
+                              print(data['version'])
+                              break
+                  except Exception:
+                      pass
+          " 2>/dev/null || true)
+
+          # Очистка версии от лишних символов (например, "1.60.0" -> "1.60.*")
           if [ -n "$IMAGE_PW_VERSION" ]; then
-            CURRENT_PW_VERSION=$(python3 -c "import playwright; print(playwright.__version__)" 2>/dev/null || true)
-            if [ "$IMAGE_PW_VERSION" != "$CURRENT_PW_VERSION" ]; then
-              echo "В образе playwright==$IMAGE_PW_VERSION, на раннере $CURRENT_PW_VERSION — переустанавливаю под версию образа"
-              pip install "playwright==$IMAGE_PW_VERSION"
-            else
-              echo "Версии playwright совпадают: $CURRENT_PW_VERSION"
-            fi
+            echo "В образе обнаружена версия Playwright/Camoufox: $IMAGE_PW_VERSION"
+            # Извлекаем major.minor для точной совместимости (например, 1.60)
+            PW_MAJOR_MINOR=$(echo "$IMAGE_PW_VERSION" | grep -oE '^[0-9]+\.[0-9]+' || echo "$IMAGE_PW_VERSION")
+            
+            echo "Устанавливаем на раннер: playwright~=${PW_MAJOR_MINOR}.0"
+            pip install "playwright~=${PW_MAJOR_MINOR}.0"
           else
-            echo "python+playwright внутри образа не найдены — пропускаю."
+            echo "Специфичная версия Playwright не обнаружена, используется установленная по умолчанию."
           fi
 
       # 2. Устанавливаем SlimToolkit
