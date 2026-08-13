@@ -150,17 +150,20 @@ def _make_minimal_pdf_bytes() -> bytes:
 # отдельные проверки
 # --------------------------------------------------------------------------
 
+# В ./Camoufox/test.py:
+
 def test_firefox_internal_pages(context: BrowserContext) -> None:
     page = context.new_page()
     try:
-        for url in ["about:blank", "about:support", "about:preferences",
-                    "about:downloads", "about:cache", "about:networking",
-                    "about:addons"]:
+        page.goto("about:blank", timeout=5000)
+        # Внутренние страницы Firefox открываем с wait_until="commit",
+        # так как domcontentloaded на них не генерируется
+        for url in ["about:support", "about:preferences", "about:downloads",
+                    "about:cache", "about:networking", "about:addons"]:
             try:
-                page.goto(url, wait_until="domcontentloaded", timeout=15000)
-            except Exception as e:  # noqa: BLE001
-                print(f"{url}: не удалось открыть ({e})")
-        page.screenshot(path=str(ASSETS_DIR / "about_pages.jpeg"), type="jpeg", quality=50)
+                page.goto(url, wait_until="commit", timeout=5000)
+            except Exception as e:
+                print(f"{url}: ошибка перехода ({e})")
     finally:
         page.close()
 

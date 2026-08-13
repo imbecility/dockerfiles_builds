@@ -23,6 +23,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     curl \
     && rm -rf /var/lib/apt/lists/* && \
     uv venv --python 3.14 && uv pip install pip && ln -s /app/.venv/bin/* /usr/local/bin/ && \
+    pip install --no-cache-dir playwright && playwright install-deps firefox 2>/dev/null || true && pip uninstall -y playwright && \
     pip install --no-cache-dir  "camoufox[geoip]" browserforge && \
     camoufox fetch
 
