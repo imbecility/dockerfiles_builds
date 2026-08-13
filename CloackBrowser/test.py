@@ -3,12 +3,14 @@ import io
 import shutil
 import subprocess
 import tempfile
+import time
 
 from pathlib import Path
 from urllib.parse import quote, urlencode
 
 from playwright._impl._api_structures import SetCookieParam  # noqa
 from playwright.sync_api import BrowserContext, Page, sync_playwright
+import httpx
 
 CDP_URL = "http://localhost:7860"
 
@@ -446,10 +448,30 @@ def run_capability_smoke_test(context: BrowserContext) -> None:
 
     context.set_default_timeout(90000)
 
+def wait_for_cdp_server(url: str, timeout: int = 30) -> None:
+    """Ждет, пока CDP-сервер начнет отвечать по HTTP."""
+    print(f"Ожидание готовности CDP-сервера по адресу {url}...")
+    start_time = time.time()
+    while time.time() - start_time < timeout:
+        try:
+            # Проверяем эндпоинт версии Chromium/CDP
+            response = httpx.get(f"{url}/json/version", timeout=2.0)
+            if response.status_code == 200:
+                print("CDP сервер успешно запущен и готов к работе!")
+                return
+        except Exception:
+            pass
+        time.sleep(1)
+    raise RuntimeError(f"Сервер CDP на {url} не ответил за {timeout} секунд.")
 
 def main(query: str, seed: str) -> None:
+    # 1. Сначала ждем, пока сервер внутри контейнера полностью поднимется
+    wait_for_cdp_server(CDP_URL, timeout=30)
+
+    # 2. Только после этого подключаемся через Playwright
     params = urlencode(dict(fingerprint=seed, geoip='true'), safe=':/@-_')
     endpoint = f'{CDP_URL.rstrip("/")}?{params}'
+    
     with sync_playwright() as p:
         browser = p.chromium.connect_over_cdp(endpoint)
         context = browser.contexts[0]
