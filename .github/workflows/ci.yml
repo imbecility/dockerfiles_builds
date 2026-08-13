@@ -1,0 +1,178 @@
+name: Dynamic Build, Optimize and Publish
+
+on:
+  push:
+    branches: [ "main", "master" ]
+  workflow_dispatch:
+
+env:
+  REGISTRY: ghcr.io
+
+jobs:
+  setup-matrix:
+    runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.set-matrix.outputs.matrix }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Detect changed services
+        id: set-matrix
+        run: |
+          SERVICES=()
+          echo "=== НАЧАЛО ПОИСКА ==="
+          BEFORE="${{ github.event.before }}"
+          SHA="${{ github.sha }}"
+
+          if [ "$BEFORE" == "0000000000000000000000000000000000000000" ] || [ -z "$BEFORE" ]; then
+            echo "Новая ветка. Сравниваем текущий коммит с предыдущим (HEAD~1)."
+            DIFF_FILES=$(git diff --name-only HEAD~1 HEAD 2>/dev/null || echo "new_branch")
+          else
+            DIFF_FILES=$(git diff --name-only $BEFORE $SHA 2>/dev/null || echo "")
+          fi
+
+          echo "Измененные файлы в этом пуше:"
+          echo "$DIFF_FILES"
+          echo "---------------------"
+
+          for dockerfile in $(find . -type f -name "Dockerfile" -not -path '*/\.*'); do
+            DIR=$(dirname "$dockerfile" | sed 's|^\./||')
+
+            if [ "$DIR" == "." ]; then
+              echo "Нашли Dockerfile в корне репозитория, пропускаем..."
+              continue
+            fi
+
+            echo "Проверяем папку: $DIR"
+            HAS_CHANGES=false
+
+            if [ "${{ github.event_name }}" == "workflow_dispatch" ]; then
+              echo "  -> Ручной запуск: добавляем в сборку"
+              HAS_CHANGES=true
+            else
+              if echo "$DIFF_FILES" | grep -q "^$DIR/"; then
+                echo "  -> [V] Найдены изменения в коде!"
+                HAS_CHANGES=true
+              else
+                echo "  -> [X] Изменений нет"
+              fi
+            fi
+
+            if [ "$HAS_CHANGES" = true ]; then
+              SERVICES+=("\"$DIR\"")
+            fi
+          done
+
+          echo "=== РЕЗУЛЬТАТ ==="
+          if [ ${#SERVICES[@]} -eq 0 ]; then
+            echo "Нет сервисов для сборки."
+            echo "matrix=[]" >> $GITHUB_OUTPUT
+          else
+            JSON_ARRAY="[$(IFS=,; echo "${SERVICES[*]}")]"
+            echo "Собираем: $JSON_ARRAY"
+            echo "matrix=$JSON_ARRAY" >> $GITHUB_OUTPUT
+          fi
+
+  build-and-push:
+    needs: setup-matrix
+    if: ${{ needs.setup-matrix.outputs.matrix != '[]' && needs.setup-matrix.outputs.matrix != '' }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    strategy:
+      fail-fast: false
+      matrix:
+        service: ${{ fromJSON(needs.setup-matrix.outputs.matrix) }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install Python Test Dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install playwright pillow
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Generate Lowercase Image Tag
+        id: image_tag
+        run: |
+          # GHCR требует имя репозитория в нижнем регистре
+          IMAGE_NAME=$(echo "${{ env.REGISTRY }}/${{ github.repository }}/${{ matrix.service }}" | tr '[:upper:]' '[:lower:]')
+          echo "tag=$IMAGE_NAME:latest" >> $GITHUB_OUTPUT
+
+      # 1. Собираем обычный (fat) образ локально в Docker daemon
+      - name: Build Fat Docker image
+        uses: docker/build-push-action@v6
+        with:
+          context: ./${{ matrix.service }}
+          push: false
+          load: true
+          tags: ${{ matrix.service }}:orig
+
+      # 2. Устанавливаем SlimToolkit
+      - name: Install SlimToolkit
+        run: |
+          curl -sL https://raw.githubusercontent.com/slimtoolkit/slim/master/scripts/install-slim.sh | sudo -E bash
+          slim --version
+
+      # 3. Запускаем автоматическую оптимизацию через SlimToolkit
+      - name: Optimize Docker Image
+        run: |
+          # Ищем тестовый скрипт рядом с Dockerfile
+          TEST_SCRIPT=""
+          if [ -f "./${{ matrix.service }}/test.py" ]; then
+            TEST_SCRIPT="./${{ matrix.service }}/test.py"
+          elif [ -f "./${{ matrix.service }}/capability_smoke_test.py" ]; then
+            TEST_SCRIPT="./${{ matrix.service }}/capability_smoke_test.py"
+          fi
+
+          SLIM_EXTRA_FLAGS=""
+          # Защищаем каталог браузера, если он есть
+          if [ -d "/root/.cloakbrowser" ]; then
+            SLIM_EXTRA_FLAGS="--preserve-path /root/.cloakbrowser"
+          fi
+
+          if [ -n "$TEST_SCRIPT" ]; then
+            echo "=== Запуск SlimToolkit с тестом: $TEST_SCRIPT ==="
+            slim build \
+              --target ${{ matrix.service }}:orig \
+              --tag ${{ steps.image_tag.outputs.tag }} \
+              --expose 7860 \
+              --publish-port 7860:7860 \
+              --http-probe-off \
+              $SLIM_EXTRA_FLAGS \
+              --host-exec "python3 $TEST_SCRIPT"
+          else
+            echo "=== Тестовый скрипт не найден, запуск стандартного зондирования ==="
+            slim build \
+              --target ${{ matrix.service }}:orig \
+              --tag ${{ steps.image_tag.outputs.tag }} \
+              --expose 7860 \
+              --publish-port 7860:7860 \
+              $SLIM_EXTRA_FLAGS \
+              --http-probe-ports 7860
+          fi
+
+      # 4. Публикуем ТОЛЬКО оптимизированный образ в GHCR
+      - name: Push Minified Image to GHCR
+        run: |
+          docker push ${{ steps.image_tag.outputs.tag }}
