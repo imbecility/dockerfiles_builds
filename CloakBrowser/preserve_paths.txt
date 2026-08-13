@@ -10,3 +10,4 @@
 # (ensure_binary() в Dockerfile) — монолит, лучше не дробить по файлам
 
 /root/.cloakbrowser
+/app/extensions

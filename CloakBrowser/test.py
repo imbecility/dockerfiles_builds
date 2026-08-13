@@ -45,7 +45,7 @@ def run_step(name, fn, *args, **kwargs) -> None:
 
 
 def set_html(page: Page, html_content: str) -> None:
-    """Универсальная вставка HTML через data:URI, надежно работающая в любых CDP-прокси."""
+    """универсальная вставка HTML через data:URI, надежно работающая в любых CDP-прокси."""
     page.goto(f"data:text/html;charset=utf-8,{quote(html_content)}", wait_until="domcontentloaded")
 
 
@@ -379,14 +379,9 @@ def test_fonts_and_scripts(context: BrowserContext) -> None:
 
 def test_extensions_loaded(context: BrowserContext, expected_count: int = EXPECTED_EXTENSIONS_COUNT) -> None:
     """
-    Не проверяем, что расширения РАБОТАЮТ (по договорённости — они нужны
-    только "для галочки", чтобы сайты видели их в списке установленных),
-    а просто мониторим, что их количество совпадает с ожидаемым, т.е.
-    что ни одно расширение не потерялось при сборке/слиминге.
-
-    Считаем через CDP Target.getTargets — надёжнее, чем парсить shadow DOM
-    страницы chrome://extensions, и не зависит от того, "проснулся" ли
-    dormant service worker у MV3-расширений.
+    не проверяем, что расширения РАБОТАЮТ - они нужны только "для галочки",
+    чтобы сайты видели их в списке установленных, а просто мониторим,
+    что их количество совпадает с ожидаемым, т.е. что ни одно расширение не потерялось при сборке/слиминге.
     """
     page = context.new_page()
     try:
@@ -486,7 +481,7 @@ def run_capability_smoke_test(context: BrowserContext) -> None:
 
 
 def wait_for_cdp_server(url: str, timeout: int = 30) -> None:
-    """Ждет, пока CDP-сервер начнет отвечать по HTTP."""
+    """ждет, пока CDP-сервер начнет отвечать по HTTP."""
     print(f"Ожидание готовности CDP-сервера по адресу {url}...")
     start_time = time.time()
     while time.time() - start_time < timeout:

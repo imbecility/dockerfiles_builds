@@ -46,7 +46,9 @@ RUN echo "deb http://deb.debian.org/debian trixie contrib" >> /etc/apt/sources.l
     curl -L "https://github.com/ClearURLs/Addon/releases/download/1.27.3/ClearURLs.zip" -o /tmp/ext.zip && \
     mkdir -p /app/extensions/clearurls && unzip -q /tmp/ext.zip -d /app/extensions/clearurls || true && \
 	rm /tmp/ext.zip && \
-    chmod +x /app/.venv/bin/cloakserve && fc-cache -f && rm -rf /var/lib/apt/lists/* /root/.cache/*
+    chmod +x /app/.venv/bin/cloakserve && fc-cache -f && rm -rf /var/lib/apt/lists/* /root/.cache/* && \
+    find /root/.cloakbrowser -name "chromedriver" -delete && \
+    find /root/.cloakbrowser -type f -name "*.pak" ! -name "en-US.pak" ! -name "ru.pak" -delete
 
 COPY <<-"EOF" /app/resolv.conf
 nameserver 1.1.1.1
@@ -78,6 +80,5 @@ exec /app/.venv/bin/cloakserve \
     --disable-dev-shm-usage \
     --load-extension="/app/extensions/clearurls,/app/extensions/cookies,/app/extensions/grammarly,/app/extensions/gtranslate,/app/extensions/bitwarden,/app/extensions/ublock,/app/extensions/yasearch"
 EOF
-RUN sed -i 's/\r$//' /app/start.sh /app/resolv.conf
 EXPOSE 7860
 CMD ["/bin/bash", "/app/start.sh"]
