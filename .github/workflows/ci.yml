@@ -167,6 +167,24 @@ jobs:
           load: true
           tags: ${{ steps.names.outputs.service_lower }}:orig  # Использует нижний регистр (cloackbrowser:orig)
 
+      # Синхронизация версии playwright на раннере с той, что реально запечена в образе.
+      # Playwright-server (Camoufox) жёстко проверяет совпадение версий клиент/сервер: расхождение = "428 Precondition Required".
+      - name: Sync Playwright Version With Image
+        run: |
+          IMAGE_PW_VERSION=$(docker run --rm "${{ steps.names.outputs.service_lower }}:orig" \
+            python3 -c "import playwright; print(playwright.__version__)" 2>/dev/null || true)
+          if [ -n "$IMAGE_PW_VERSION" ]; then
+            CURRENT_PW_VERSION=$(python3 -c "import playwright; print(playwright.__version__)" 2>/dev/null || true)
+            if [ "$IMAGE_PW_VERSION" != "$CURRENT_PW_VERSION" ]; then
+              echo "В образе playwright==$IMAGE_PW_VERSION, на раннере $CURRENT_PW_VERSION — переустанавливаю под версию образа"
+              pip install "playwright==$IMAGE_PW_VERSION"
+            else
+              echo "Версии playwright совпадают: $CURRENT_PW_VERSION"
+            fi
+          else
+            echo "python3+playwright внутри образа не найдены (нормально, если сервис так не работает) — пропускаю."
+          fi
+
       # 2. Устанавливаем SlimToolkit
       - name: Install SlimToolkit
         run: |
