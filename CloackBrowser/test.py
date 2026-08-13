@@ -12,12 +12,9 @@ from playwright.sync_api import BrowserContext, Page, sync_playwright
 
 CDP_URL = "http://localhost:7860"
 
-if os.name == 'nt':
-    ASSETS_DIR = Path(r'\\wsl.localhost\Debian\home\user\docker\cdp_browser')
-else:
-    ASSETS_DIR = Path('/home/user/docker/cdp_browser')
-
+ASSETS_DIR = Path(tempfile.gettempdir()) / "cdp_browser_assets"
 ASSETS_DIR.mkdir(parents=True, exist_ok=True)
+
 
 cookies: list[SetCookieParam] = [
     {'name': 'ys', 'value': 'wprid.1779106375637420-12880543316618692126-balancer-l7leveler-kubr-yp-klg-290-BAL', 'domain': '.yandex.com', 'path': '/', 'httpOnly': False, 'secure': True, 'sameSite': 'None', 'expires': 2094715208.043561},
