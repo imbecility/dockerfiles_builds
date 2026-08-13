@@ -172,7 +172,8 @@ jobs:
       - name: Sync Playwright Version With Image
         run: |
           IMAGE_PW_VERSION=$(docker run --rm "${{ steps.names.outputs.service_lower }}:orig" \
-            python3 -c "import playwright; print(playwright.__version__)" 2>/dev/null || true)
+            sh -c 'python -c "import playwright; print(playwright.__version__)" 2>/dev/null || /app/.venv/bin/python -c "import playwright; print(playwright.__version__)" 2>/dev/null || python3 -c "import playwright; print(playwright.__version__)" 2>/dev/null' || true)
+          
           if [ -n "$IMAGE_PW_VERSION" ]; then
             CURRENT_PW_VERSION=$(python3 -c "import playwright; print(playwright.__version__)" 2>/dev/null || true)
             if [ "$IMAGE_PW_VERSION" != "$CURRENT_PW_VERSION" ]; then
@@ -182,7 +183,7 @@ jobs:
               echo "Версии playwright совпадают: $CURRENT_PW_VERSION"
             fi
           else
-            echo "python3+playwright внутри образа не найдены (нормально, если сервис так не работает) — пропускаю."
+            echo "python+playwright внутри образа не найдены — пропускаю."
           fi
 
       # 2. Устанавливаем SlimToolkit

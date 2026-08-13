@@ -18,7 +18,7 @@ RUN echo "deb http://deb.debian.org/debian trixie contrib" >> /etc/apt/sources.l
     libgdk-pixbuf-2.0-0 libxss1 libxtst6 fonts-liberation \
     fonts-noto-color-emoji fonts-unifont fonts-freefont-ttf \
     fonts-ipafont-gothic fonts-wqy-zenhei fonts-tlwg-loma-otf \
-    libgl1-mesa-dri libegl-mesa0 xvfb xdotool \
+    libgl1-mesa-dri libegl-mesa0 xvfb x11-utils xdotool \
     procps xclip ffmpeg unzip privoxy ttf-mscorefonts-installer && \
     curl -fsSL https://deb.nodesource.com/setup_20.x | bash - && \
     apt-get install -y --no-install-recommends nodejs && \
