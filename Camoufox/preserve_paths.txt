@@ -8,3 +8,4 @@
 
 # /home/name/.cache/camoufox
 /root/.cache/camoufox
+/root/.camoufox
