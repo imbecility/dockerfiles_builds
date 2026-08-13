@@ -1,7 +1,8 @@
 FROM debian:stable-slim
 
 COPY --from=ghcr.io/astral-sh/uv:latest /uv /uvx /bin/
-ENV PATH="/app/.venv/bin:$PATH"
+ENV PATH="/app/.venv/bin:$PATH" \
+    PORT=7860
 WORKDIR /app
 
 RUN echo "deb http://deb.debian.org/debian trixie contrib" >> /etc/apt/sources.list.d/contrib.list && \
@@ -65,9 +66,10 @@ export HTTPX_LOG_LEVEL=warning
 export DISPLAY=:99
 Xvfb :99 -screen 0 1920x1080x24 -nolisten tcp &
 sleep 1
+PORT="${PORT:-7860}"
 echo -e "\n==================================\nstarting chromium cdp server...\nconnect:\nwith sync_playwright() as p:\n    browser = p.chromium.connect_over_cdp('http://host:port/?fingerprint=<seed>')\n==================================\n"
 exec /app/.venv/bin/cloakserve \
-    --port=7860 \
+    --port="${PORT}" \
 	--host=0.0.0.0 \
     --log-level=3 \
     --no-sandbox \
@@ -80,5 +82,5 @@ exec /app/.venv/bin/cloakserve \
     --disable-dev-shm-usage \
     --load-extension="/app/extensions/clearurls,/app/extensions/cookies,/app/extensions/grammarly,/app/extensions/gtranslate,/app/extensions/bitwarden,/app/extensions/ublock,/app/extensions/yasearch"
 EOF
-EXPOSE 7860
+EXPOSE ${PORT}
 CMD ["/bin/bash", "/app/start.sh"]

@@ -184,6 +184,17 @@ jobs:
           elif [ -f "./${{ matrix.service }}/capability_smoke_test.py" ]; then
             TEST_SCRIPT="./${{ matrix.service }}/capability_smoke_test.py"
           fi
+          
+          # Порт узнаём из самого образа (EXPOSE в Dockerfile)
+          SERVICE_PORT=$(docker inspect "${{ steps.names.outputs.service_lower }}:orig" \
+            --format '{{json .Config.ExposedPorts}}' \
+            | python3 -c "import sys, json; d = json.load(sys.stdin); print(list(d.keys())[0].split('/')[0])")
+
+          if [ -z "$SERVICE_PORT" ]; then
+            echo "Не удалось определить порт из EXPOSE — проверьте Dockerfile сервиса." >&2
+            exit 1
+          fi
+          echo "Определён порт сервиса: $SERVICE_PORT"
 
           # Универсальный сбор --preserve-path из preserve_paths.txt, если он есть.
           # Каждый путь дополнительно проверяется на реальное существование ВНУТРИ
@@ -212,8 +223,8 @@ jobs:
             slim build \
               --target ${{ steps.names.outputs.service_lower }}:orig \
               --tag ${{ steps.names.outputs.tag }} \
-              --expose 7860 \
-              --publish-port 7860:7860 \
+              --expose "$SERVICE_PORT" \
+              --publish-port "$SERVICE_PORT:$SERVICE_PORT" \
               --http-probe-off \
               $SLIM_EXTRA_FLAGS \
               --host-exec "python3 $TEST_SCRIPT"
@@ -222,10 +233,10 @@ jobs:
             slim build \
               --target ${{ steps.names.outputs.service_lower }}:orig \
               --tag ${{ steps.names.outputs.tag }} \
-              --expose 7860 \
-              --publish-port 7860:7860 \
+              --expose "$SERVICE_PORT" \
+              --publish-port "$SERVICE_PORT:$SERVICE_PORT" \
               $SLIM_EXTRA_FLAGS \
-              --http-probe-ports 7860
+              --http-probe-ports "$SERVICE_PORT"
           fi
 
       # 4. Публикуем ТОЛЬКО оптимизированный образ в GHCR
