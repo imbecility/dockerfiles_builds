@@ -26,6 +26,9 @@ cookies: list[SetCookieParam] = [
 
 PERMISSIONS_ORIGIN = "https://example.com"
 
+# должно совпадать с количеством путей в --load-extension в Dockerfile/start.sh
+EXPECTED_EXTENSIONS_COUNT = 7
+
 
 def log(step: str, ok: bool, extra: str = "") -> None:
     mark = "OK  " if ok else "FAIL"
@@ -54,7 +57,8 @@ def make_media_data_uris() -> dict:
     assets = {}
     ffmpeg = shutil.which("ffmpeg")
     if not ffmpeg:
-        print("ffmpeg не найден в PATH — пропускаю генерацию видео/аудио.")
+        print("ffmpeg не найден в PATH — пропускаю генерацию видео/аудио. "
+              "Убедитесь, что linux_deps.txt подхвачен и пакеты установлены на раннере.")
         return assets
 
     specs = [
@@ -167,12 +171,10 @@ def test_image_decoders(context: BrowserContext, images: dict) -> None:
         set_html(page, f"<html><body>{tags}</body></html>")
         for ext in images:
             try:
-                # 1. Ждем завершения загрузки тега img
                 page.wait_for_function(
                     f"(() => {{ const el = document.getElementById('img_{ext}'); return el && el.complete; }})()",
                     timeout=3000,
                 )
-                # 2. Рендерим на canvas: это заставляет Skia задействовать декодер каждого формата
                 page.evaluate(f"""(() => {{
                     const img = document.getElementById('img_{ext}');
                     const c = document.createElement('canvas');
@@ -375,6 +377,39 @@ def test_fonts_and_scripts(context: BrowserContext) -> None:
         page.close()
 
 
+def test_extensions_loaded(context: BrowserContext, expected_count: int = EXPECTED_EXTENSIONS_COUNT) -> None:
+    """
+    Не проверяем, что расширения РАБОТАЮТ (по договорённости — они нужны
+    только "для галочки", чтобы сайты видели их в списке установленных),
+    а просто мониторим, что их количество совпадает с ожидаемым, т.е.
+    что ни одно расширение не потерялось при сборке/слиминге.
+
+    Считаем через CDP Target.getTargets — надёжнее, чем парсить shadow DOM
+    страницы chrome://extensions, и не зависит от того, "проснулся" ли
+    dormant service worker у MV3-расширений.
+    """
+    page = context.new_page()
+    try:
+        # даём время фоновым страницам/service worker'ам расширений подняться
+        time.sleep(1.5)
+        cdp = context.new_cdp_session(page)
+        targets = cdp.send("Target.getTargets")["targetInfos"]
+        ext_ids = sorted({
+            t["url"].split("chrome-extension://", 1)[1].split("/", 1)[0]
+            for t in targets
+            if t["url"].startswith("chrome-extension://")
+        })
+        print(f"обнаружено расширений: {len(ext_ids)} (ожидалось {expected_count})")
+        for ext_id in ext_ids:
+            print(f"  - {ext_id}")
+        assert len(ext_ids) == expected_count, (
+            f"количество расширений не совпадает: найдено {len(ext_ids)}, "
+            f"ожидалось {expected_count}"
+        )
+    finally:
+        page.close()
+
+
 def run_yandex_search_scenario(context: BrowserContext, query: str) -> None:
     context.add_cookies(cookies)
     page = context.new_page()
@@ -445,8 +480,10 @@ def run_capability_smoke_test(context: BrowserContext) -> None:
     run_step("перехват сетевых запросов", test_network_interception, context)
     run_step("CDP: MHTML-снапшот страницы", test_cdp_mhtml_snapshot, context)
     run_step("шрифты и письменности (кириллица/арабский/CJK/эмодзи)", test_fonts_and_scripts, context)
+    run_step("количество загруженных расширений", test_extensions_loaded, context)
 
     context.set_default_timeout(90000)
+
 
 def wait_for_cdp_server(url: str, timeout: int = 30) -> None:
     """Ждет, пока CDP-сервер начнет отвечать по HTTP."""
@@ -454,7 +491,6 @@ def wait_for_cdp_server(url: str, timeout: int = 30) -> None:
     start_time = time.time()
     while time.time() - start_time < timeout:
         try:
-            # Проверяем эндпоинт версии Chromium/CDP
             response = httpx.get(f"{url}/json/version", timeout=2.0)
             if response.status_code == 200:
                 print("CDP сервер успешно запущен и готов к работе!")
@@ -464,14 +500,13 @@ def wait_for_cdp_server(url: str, timeout: int = 30) -> None:
         time.sleep(1)
     raise RuntimeError(f"Сервер CDP на {url} не ответил за {timeout} секунд.")
 
+
 def main(query: str, seed: str) -> None:
-    # 1. Сначала ждем, пока сервер внутри контейнера полностью поднимется
     wait_for_cdp_server(CDP_URL, timeout=30)
 
-    # 2. Только после этого подключаемся через Playwright
     params = urlencode(dict(fingerprint=seed, geoip='true'), safe=':/@-_')
     endpoint = f'{CDP_URL.rstrip("/")}?{params}'
-    
+
     with sync_playwright() as p:
         browser = p.chromium.connect_over_cdp(endpoint)
         context = browser.contexts[0]
