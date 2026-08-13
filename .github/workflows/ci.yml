@@ -95,15 +95,15 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
-          python-version: '3.12'
+          python-version: '3.13'
 
       - name: Install Python Test Dependencies
         run: |
           python -m pip install --upgrade pip
-          
+
           # Персональный файл зависимостей в папке сервиса
           SERVICE_DIR="./${{ matrix.service }}"
-          
+
           if [ -f "$SERVICE_DIR/requirements-test.txt" ]; then
             echo "Найден $SERVICE_DIR/requirements-test.txt, устанавливаем зависимости..."
             pip install -r "$SERVICE_DIR/requirements-test.txt"
@@ -112,6 +112,28 @@ jobs:
             pip install -r "$SERVICE_DIR/requirements.txt"
           else
             echo "Файл зависимостей в $SERVICE_DIR не найден, используются базовые библиотеки."
+          fi
+
+      # Системные (apt) зависимости, нужные ТОЛЬКО тесту (запускается на раннере
+      # через slim build --host-exec, т.е. вне контейнера) — например ffmpeg
+      # для генерации тестовых видео/аудио. В финальный образ не попадают.
+      - name: Install Linux Test Dependencies
+        run: |
+          SERVICE_DIR="./${{ matrix.service }}"
+          DEPS_FILE="$SERVICE_DIR/linux_deps.txt"
+
+          if [ -f "$DEPS_FILE" ]; then
+            echo "Найден $DEPS_FILE, читаем список пакетов..."
+            PACKAGES=$(grep -vE '^\s*(#|$)' "$DEPS_FILE" | tr '\n' ' ' | xargs)
+            if [ -n "$PACKAGES" ]; then
+              echo "Устанавливаем на раннер: $PACKAGES"
+              sudo apt-get update
+              sudo apt-get install -y --no-install-recommends $PACKAGES
+            else
+              echo "Файл найден, но пуст (только комментарии) — пропускаем."
+            fi
+          else
+            echo "$DEPS_FILE не найден, системные зависимости для теста не устанавливаются."
           fi
 
       - name: Log in to GitHub Container Registry
@@ -129,10 +151,10 @@ jobs:
         run: |
           # Имя локального тега в нижнем регистре (например: cloackbrowser)
           SERVICE_LOWER=$(echo "${{ matrix.service }}" | tr '[:upper:]' '[:lower:]')
-          
+
           # Полный путь к тегу в GHCR
           IMAGE_TAG=$(echo "${{ env.REGISTRY }}/${{ github.repository }}/${SERVICE_LOWER}" | tr '[:upper:]' '[:lower:]')
-          
+
           echo "service_lower=${SERVICE_LOWER}" >> $GITHUB_OUTPUT
           echo "tag=${IMAGE_TAG}:latest" >> $GITHUB_OUTPUT
 
@@ -163,10 +185,27 @@ jobs:
             TEST_SCRIPT="./${{ matrix.service }}/capability_smoke_test.py"
           fi
 
+          # Универсальный сбор --preserve-path из preserve_paths.txt, если он есть.
+          # Каждый путь дополнительно проверяется на реальное существование ВНУТРИ
+          # собранного образа — не полагаемся на файловую систему раннера.
           SLIM_EXTRA_FLAGS=""
-          if [ -d "/root/.cloakbrowser" ]; then
-            SLIM_EXTRA_FLAGS="--preserve-path /root/.cloakbrowser"
+          PRESERVE_FILE="./${{ matrix.service }}/preserve_paths.txt"
+          if [ -f "$PRESERVE_FILE" ]; then
+            echo "Найден $PRESERVE_FILE, проверяем пути внутри образа..."
+            while IFS= read -r p || [ -n "$p" ]; do
+              path=$(echo "$p" | xargs)  # обрезаем пробелы
+              case "$path" in
+                ''|'#'*) continue ;;
+              esac
+              if docker run --rm "${{ steps.names.outputs.service_lower }}:orig" test -e "$path"; then
+                echo "  -> [V] $path существует, добавляем --preserve-path"
+                SLIM_EXTRA_FLAGS="$SLIM_EXTRA_FLAGS --preserve-path $path"
+              else
+                echo "  -> [X] $path не найден в образе, пропускаем (проверьте путь в preserve_paths.txt)"
+              fi
+            done < "$PRESERVE_FILE"
           fi
+          echo "SLIM_EXTRA_FLAGS: $SLIM_EXTRA_FLAGS"
 
           if [ -n "$TEST_SCRIPT" ]; then
             echo "=== Запуск SlimToolkit с тестом: $TEST_SCRIPT ==="
