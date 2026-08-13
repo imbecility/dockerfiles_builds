@@ -513,4 +513,9 @@ def main(query: str, seed: str) -> None:
 
 
 if __name__ == "__main__":
-    main('bufo bufo care', 'yandex_search')
+    try:
+        main('bufo bufo care', 'yandex_search')
+    except Exception as e:
+        print(f"[FATAL] сценарий упал с необработанной ошибкой: {e!r}")
+        import traceback
+        traceback.print_exc()

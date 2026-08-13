@@ -65,7 +65,20 @@ touch /.dockerenv
 export HTTPX_LOG_LEVEL=warning
 export DISPLAY=:99
 Xvfb :99 -screen 0 1920x1080x24 -nolisten tcp &
-sleep 1
+
+# ждём, пока Xvfb реально начнёт принимать соединения
+for i in $(seq 1 20); do
+    if xdpyinfo -display :99 >/dev/null 2>&1; then
+        echo "Xvfb готов (попытка $i)"
+        break
+    fi
+    sleep 0.5
+done
+if ! xdpyinfo -display :99 >/dev/null 2>&1; then
+    echo "Xvfb не поднялся за отведенное время!" >&2
+    exit 1
+fi
+
 PORT="${PORT:-7860}"
 echo -e "\n==================================\nstarting chromium cdp server...\nconnect:\nwith sync_playwright() as p:\n    browser = p.chromium.connect_over_cdp('http://host:port/?fingerprint=<seed>')\n==================================\n"
 exec /app/.venv/bin/cloakserve \

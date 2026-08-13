@@ -226,6 +226,7 @@ jobs:
               --expose "$SERVICE_PORT" \
               --publish-port "$SERVICE_PORT:$SERVICE_PORT" \
               --http-probe-off \
+              --show-clogs \
               $SLIM_EXTRA_FLAGS \
               --host-exec "python3 $TEST_SCRIPT"
           else
@@ -235,6 +236,7 @@ jobs:
               --tag ${{ steps.names.outputs.tag }} \
               --expose "$SERVICE_PORT" \
               --publish-port "$SERVICE_PORT:$SERVICE_PORT" \
+              --show-clogs \
               $SLIM_EXTRA_FLAGS \
               --http-probe-ports "$SERVICE_PORT"
           fi
