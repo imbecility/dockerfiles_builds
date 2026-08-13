@@ -171,40 +171,55 @@ jobs:
       # Playwright-server (Camoufox) жёстко проверяет совпадение версий клиент/сервер: расхождение = "428 Precondition Required".
       - name: Sync Playwright Version With Image
         run: |
+          # 1. Запрашиваем версию напрямую из Python-окружения контейнера
           IMAGE_PW_VERSION=$(docker run --rm "${{ steps.names.outputs.service_lower }}:orig" python -c '
-          import textwrap, sys
-          exec(textwrap.dedent("""
-              import sys, pathlib, json
-              try:
-                  import playwright
-                  print(playwright.__version__)
-                  sys.exit(0)
-              except Exception:
-                  pass
+          import importlib.metadata, json, os, sys
 
-              for p in pathlib.Path("/").glob("**/playwright*/package.json"):
-                  try:
-                      data = json.loads(p.read_text())
-                      if "version" in data:
-                          print(data["version"])
-                          sys.exit(0)
-                  except Exception:
-                      pass
-          """))
+          # Вариант А: установлен ли сам пакет playwright?
+          try:
+              print(importlib.metadata.version("playwright"))
+              sys.exit(0)
+          except Exception:
+              pass
+
+          # Вариант Б: это Camoufox — читаем манифест драйвера из .cache или метаданных
+          cache_dir = "/root/.cache/camoufox"
+          if os.path.exists(cache_dir):
+              for root, _, files in os.walk(cache_dir):
+                  if "package.json" in files:
+                      try:
+                          with open(os.path.join(root, "package.json")) as f:
+                              d = json.load(f)
+                              if "playwright" in d.get("name", "") or "version" in d:
+                                  print(d["version"])
+                                  sys.exit(0)
+                      except Exception:
+                          pass
+
+          # Вариант В: узнаем зависимость playwright из метаданных camoufox
+          try:
+              reqs = importlib.metadata.requires("camoufox") or []
+              for r in reqs:
+                  if "playwright" in r:
+                      print(r)
+                      sys.exit(0)
+          except Exception:
+              pass
           ' 2>/dev/null || true)
 
           echo "Результат детекции версии из образа: '$IMAGE_PW_VERSION'"
 
           if [ -n "$IMAGE_PW_VERSION" ]; then
-            # Извлекаем major.minor (например, из 1.60.0 -> 1.60)
-            PW_MAJOR_MINOR=$(echo "$IMAGE_PW_VERSION" | grep -oE '^[0-9]+\.[0-9]+' || echo "$IMAGE_PW_VERSION")
+            # Извлекаем major.minor (например: 1.60.0 -> 1.60 или "playwright<1.61,>=1.60" -> 1.60)
+            PW_MAJOR_MINOR=$(echo "$IMAGE_PW_VERSION" | grep -oE '[0-9]+\.[0-9]+' | head -n1)
             CURRENT_PW_VERSION=$(python3 -c "import playwright; print(playwright.__version__)" 2>/dev/null || true)
             
+            echo "Целевая версия Playwright: $PW_MAJOR_MINOR (текущая на раннере: $CURRENT_PW_VERSION)"
             if [[ "$CURRENT_PW_VERSION" != "$PW_MAJOR_MINOR"* ]]; then
-              echo "В образе playwright==$IMAGE_PW_VERSION, на раннере $CURRENT_PW_VERSION — переустанавливаем под версию образа"
+              echo "Версии различаются. Переустанавливаем Playwright на раннере..."
               pip install "playwright~=${PW_MAJOR_MINOR}.0"
             else
-              echo "Версии playwright совпадают ($CURRENT_PW_VERSION)."
+              echo "Версии Playwright совпадают."
             fi
           else
             echo "Специфичная версия Playwright не обнаружена, используется установленная по умолчанию."
