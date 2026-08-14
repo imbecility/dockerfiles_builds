@@ -276,6 +276,7 @@ jobs:
             slim build \
               --target ${{ steps.names.outputs.service_lower }}:orig \
               --tag ${{ steps.names.outputs.tag }} \
+              --network host \
               --expose "$SERVICE_PORT" \
               --publish-port "$SERVICE_PORT:$SERVICE_PORT" \
               --http-probe-off \
@@ -288,6 +289,7 @@ jobs:
             slim build \
               --target ${{ steps.names.outputs.service_lower }}:orig \
               --tag ${{ steps.names.outputs.tag }} \
+              --network host \
               --expose "$SERVICE_PORT" \
               --publish-port "$SERVICE_PORT:$SERVICE_PORT" \
               --cro-shm-size 2147483648 \
