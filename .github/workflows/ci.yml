@@ -225,12 +225,14 @@ jobs:
             echo "Специфичная версия Playwright не обнаружена, используется установленная по умолчанию."
           fi
 
-      # 2. Устанавливаем SlimToolkit
+      # 2. Устанавливаем стабильный релиз SlimToolkit 1.40.12
       - name: Install SlimToolkit
         run: |
-          curl -sL "https://github.com/slimtoolkit/slim/releases/latest/download/dist_linux.tar.gz" -o /tmp/ds.tar.gz
+          curl -sL "https://github.com/mintoolkit/mint/releases/download/1.40.12/dist_linux.tar.gz" -o /tmp/ds.tar.gz
           tar -xvf /tmp/ds.tar.gz -C /tmp
           sudo cp -a /tmp/dist_linux/* /usr/local/bin/
+          # Создаём симлинки на случай разных имён бинарников (slim / docker-slim / mint)
+          sudo ln -sf /usr/local/bin/docker-slim /usr/local/bin/slim 2>/dev/null || sudo ln -sf /usr/local/bin/mint /usr/local/bin/slim 2>/dev/null || true
           slim --version
 
       # 3. Запускаем автоматическую оптимизацию через SlimToolkit
@@ -269,9 +271,6 @@ jobs:
             done < "$PRESERVE_FILE"
           fi
 
-          # Создаём конфигурацию Docker Host с IpcMode=host (требование Playwright для Xvfb/Headed режима)
-          echo '{"IpcMode": "host", "ShmSize": 2147483648}' > /tmp/host_config.json
-
           if [ -n "$TEST_SCRIPT" ]; then
             echo "=== Запуск SlimToolkit с тестом: $TEST_SCRIPT ==="
             slim build \
@@ -279,8 +278,9 @@ jobs:
               --tag ${{ steps.names.outputs.tag }} \
               --expose "$SERVICE_PORT" \
               --publish-port "$SERVICE_PORT:$SERVICE_PORT" \
-              --cro-host-config-file /tmp/host_config.json \
               --http-probe-off \
+              --rta-source-ptrace=false \
+              --cro-shm-size 2147483648 \
               --show-clogs \
               $SLIM_EXTRA_FLAGS \
               --host-exec "python3 -u $TEST_SCRIPT"
@@ -291,7 +291,8 @@ jobs:
               --tag ${{ steps.names.outputs.tag }} \
               --expose "$SERVICE_PORT" \
               --publish-port "$SERVICE_PORT:$SERVICE_PORT" \
-              --cro-host-config-file /tmp/host_config.json \
+              --rta-source-ptrace=false \
+              --cro-shm-size 2147483648 \
               --show-clogs \
               $SLIM_EXTRA_FLAGS \
               --http-probe-ports "$SERVICE_PORT"
