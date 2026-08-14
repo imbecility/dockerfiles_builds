@@ -1,6 +1,6 @@
 import os
-from browserforge.fingerprints import Screen
 from camoufox.server import launch_server
+from browserforge.fingerprints import Screen
 
 if __name__ == "__main__":
     port = int(os.getenv("PORT", "7861"))
@@ -14,19 +14,14 @@ if __name__ == "__main__":
         "os": ["windows", "macos"],
         "screen": Screen(max_width=1920, max_height=1080),
         "humanize": 1.5,
-        "geoip": False,           # пока держим выключенным для чистоты диагностики,
-                                    # можно будет вернуть True после того как сеть заработает
+        "geoip": True,
         "disable_coop": True,
         "allow_webgl": True,
         "enable_cache": True,
         "i_know_what_im_doing": True,
         "config": {
             "forceScopeAccess": True
-        },
-        "firefox_user_prefs": {
-            "network.trr.mode": 5,            # DNS-over-HTTPS полностью выключен
-            "network.dns.disableIPv6": True,   # на случай проблем с IPv6-egress в контейнере
-        },
+        }
     }
 
     proxy_url = os.getenv("PROXY_SERVER")
