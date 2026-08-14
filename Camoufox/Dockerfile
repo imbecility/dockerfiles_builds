@@ -9,7 +9,7 @@ WORKDIR /app
 COPY server.py /app/server.py
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    curl ca-certificates \
+    curl ca-certificates procps xclip ffmpeg unzip \
     libnss3 libnspr4 libatk1.0-0 libatk-bridge2.0-0 libcups2 \
     libdbus-1-3 libdrm2 libxkbcommon0 libatspi2.0-0 libxcomposite1 \
     libxdamage1 libxfixes3 libxrandr2 libgbm1 libpango-1.0-0 \
@@ -17,8 +17,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     libxcb1 libxext6 libxshmfence1 \
     libglib2.0-0 libgtk-3-0 libpangocairo-1.0-0 libcairo-gobject2 \
     libgdk-pixbuf-2.0-0 libxss1 libxtst6 fonts-liberation \
-    libgl1-mesa-dri libegl-mesa0 xvfb x11-utils xdotool \
-    procps xclip ffmpeg unzip && \
+    libgl1-mesa-dri libegl-mesa0 xvfb x11-utils xdotool && \
     mkdir -p /root/.camoufox && \
     uv venv --python 3.14 && uv pip install pip && \
     pip install --no-cache-dir playwright && playwright install-deps firefox 2>/dev/null || true && pip uninstall -y playwright && \
