@@ -20,7 +20,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     libgl1-mesa-dri libegl-mesa0 xvfb x11-utils xdotool \
     procps xclip ffmpeg unzip && \
     mkdir -p /root/.camoufox && \
-    uv venv --python 3.14 && uv pip install pip && ln -s /app/.venv/bin/* /usr/local/bin/ && \
+    uv venv --python 3.14 && uv pip install pip && \
     pip install --no-cache-dir playwright && playwright install-deps firefox 2>/dev/null || true && pip uninstall -y playwright && \
     pip install --no-cache-dir  "camoufox[geoip]" browserforge && \
     camoufox fetch && rm -rf /var/lib/apt/lists/*
