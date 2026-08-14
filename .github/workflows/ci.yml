@@ -284,6 +284,8 @@ jobs:
               --http-probe-off \
               --rta-source-ptrace=false \
               --cro-shm-size 2147483648 \
+              --exclude-pattern="/tmp/**" \
+              --exclude-pattern="/dev/shm/**" \
               --show-clogs \
               $SLIM_EXTRA_FLAGS \
               --host-exec "python -u $TEST_SCRIPT"
@@ -296,6 +298,8 @@ jobs:
               --publish-port "$SERVICE_PORT:$SERVICE_PORT" \
               --rta-source-ptrace=false \
               --cro-shm-size 2147483648 \
+              --exclude-pattern="/tmp/**" \
+              --exclude-pattern="/dev/shm/**" \
               --show-clogs \
               $SLIM_EXTRA_FLAGS \
               --http-probe-ports "$SERVICE_PORT"

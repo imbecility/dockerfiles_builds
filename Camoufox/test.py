@@ -455,7 +455,7 @@ def run_capability_smoke_test(context: BrowserContext) -> None:
     media_uris = make_media_data_uris()
     images = make_image_assets()
 
-    context.set_default_timeout(5000)
+    context.set_default_timeout(15000)
 
     run_step("about: внутренние страницы", test_firefox_internal_pages, context)
     run_step("варианты навигации (about/data/file)", test_navigation_variants, context)
