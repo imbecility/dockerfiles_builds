@@ -48,7 +48,7 @@ RUN echo "deb http://deb.debian.org/debian trixie contrib" >> /etc/apt/sources.l
     mkdir -p /app/extensions/clearurls && unzip -q /tmp/ext.zip -d /app/extensions/clearurls || true && \
 	rm /tmp/ext.zip && \
     chmod +x /app/.venv/bin/cloakserve && fc-cache -f && rm -rf /var/lib/apt/lists/* /root/.cache/* && \
-    find /root/.cloakbrowser -name "chromedriver" -delete && \
+    find /root/.cloakbrowser -name "chromedriver" -delete || true && \
     find /root/.cloakbrowser/Locales -type f -name "*.pak" ! -name "en-US.pak" ! -name "ru.pak" -delete || true && \
     find /root/.cloakbrowser/locales -type f -name "*.pak" ! -name "en-US.pak" ! -name "ru.pak" -delete || true
 
