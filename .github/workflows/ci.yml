@@ -243,6 +243,7 @@ jobs:
             TEST_SCRIPT="./${{ matrix.service }}/capability_smoke_test.py"
           fi
           
+          # Порт узнаём из самого образа (EXPOSE в Dockerfile)
           SERVICE_PORT=$(docker inspect "${{ steps.names.outputs.service_lower }}:orig" \
             --format '{{json .Config.ExposedPorts}}' \
             | python3 -c "import sys, json; d = json.load(sys.stdin); print(list(d.keys())[0].split('/')[0])")
@@ -253,6 +254,7 @@ jobs:
           fi
           echo "Определён порт сервиса: $SERVICE_PORT"
 
+          # Универсальный сбор --preserve-path из preserve_paths.txt
           SLIM_EXTRA_FLAGS=""
           PRESERVE_FILE="./${{ matrix.service }}/preserve_paths.txt"
           if [ -f "$PRESERVE_FILE" ]; then
@@ -271,10 +273,6 @@ jobs:
             done < "$PRESERVE_FILE"
           fi
 
-          # Создаем директорию на раннере для проброса в /tmp контейнера (для обхода краша mint-sensor)
-          mkdir -p /tmp/slim_target_tmp
-          chmod 777 /tmp/slim_target_tmp
-
           if [ -n "$TEST_SCRIPT" ]; then
             echo "=== Запуск SlimToolkit с тестом: $TEST_SCRIPT ==="
             slim build \
@@ -283,9 +281,6 @@ jobs:
               --expose "$SERVICE_PORT" \
               --publish-port "$SERVICE_PORT:$SERVICE_PORT" \
               --http-probe-off \
-              --rta-source-ptrace=false \
-              --cro-shm-size 2147483648 \
-              --mount "/tmp/slim_target_tmp:/tmp" \
               --show-clogs \
               $SLIM_EXTRA_FLAGS \
               --host-exec "python3 -u $TEST_SCRIPT"
@@ -296,9 +291,6 @@ jobs:
               --tag ${{ steps.names.outputs.tag }} \
               --expose "$SERVICE_PORT" \
               --publish-port "$SERVICE_PORT:$SERVICE_PORT" \
-              --rta-source-ptrace=false \
-              --cro-shm-size 2147483648 \
-              --mount "/tmp/slim_target_tmp:/tmp" \
               --show-clogs \
               $SLIM_EXTRA_FLAGS \
               --http-probe-ports "$SERVICE_PORT"
