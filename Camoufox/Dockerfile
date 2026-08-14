@@ -34,7 +34,7 @@ EOF
 
 COPY --chmod=755 <<-"EOF" /app/start.sh
 #!/bin/bash
-# cat /app/resolv.conf > /etc/resolv.conf
+cat /app/resolv.conf > /etc/resolv.conf
 touch /.dockerenv
 export HTTPX_LOG_LEVEL=warning
 export DISPLAY=:99
