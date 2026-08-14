@@ -256,7 +256,7 @@ jobs:
           SLIM_EXTRA_FLAGS=""
           PRESERVE_FILE="./${{ matrix.service }}/preserve_paths.txt"
           if [ -f "$PRESERVE_FILE" ]; then
-            echo "Найден $PRESERVE_FILE, проверяем пути внутри образа..."
+            echo "Найден $PRESERVE_FILE, проверяем пути..."
             while IFS= read -r p || [ -n "$p" ]; do
               path=$(echo "$p" | xargs)
               case "$path" in
@@ -265,22 +265,22 @@ jobs:
               if docker run --rm "${{ steps.names.outputs.service_lower }}:orig" test -e "$path"; then
                 echo "  -> [V] $path существует, добавляем --preserve-path"
                 SLIM_EXTRA_FLAGS="$SLIM_EXTRA_FLAGS --preserve-path $path"
-              else
-                echo "  -> [X] $path не найден в образе, пропускаем"
               fi
             done < "$PRESERVE_FILE"
           fi
+
+          # Создаём конфигурацию Docker Host с IpcMode=host (требование Playwright для Xvfb/Headed режима)
+          echo '{"IpcMode": "host", "ShmSize": 2147483648}' > /tmp/host_config.json
 
           if [ -n "$TEST_SCRIPT" ]; then
             echo "=== Запуск SlimToolkit с тестом: $TEST_SCRIPT ==="
             slim build \
               --target ${{ steps.names.outputs.service_lower }}:orig \
               --tag ${{ steps.names.outputs.tag }} \
-              --network host \
               --expose "$SERVICE_PORT" \
               --publish-port "$SERVICE_PORT:$SERVICE_PORT" \
+              --cro-host-config-file /tmp/host_config.json \
               --http-probe-off \
-              --cro-shm-size 2147483648 \
               --show-clogs \
               $SLIM_EXTRA_FLAGS \
               --host-exec "python3 -u $TEST_SCRIPT"
@@ -289,10 +289,9 @@ jobs:
             slim build \
               --target ${{ steps.names.outputs.service_lower }}:orig \
               --tag ${{ steps.names.outputs.tag }} \
-              --network host \
               --expose "$SERVICE_PORT" \
               --publish-port "$SERVICE_PORT:$SERVICE_PORT" \
-              --cro-shm-size 2147483648 \
+              --cro-host-config-file /tmp/host_config.json \
               --show-clogs \
               $SLIM_EXTRA_FLAGS \
               --http-probe-ports "$SERVICE_PORT"

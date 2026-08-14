@@ -36,7 +36,7 @@ COPY --chmod=755 <<-"EOF" /app/start.sh
 #!/bin/bash
 cat /app/resolv.conf > /etc/resolv.conf
 touch /.dockerenv
-export HTTPX_LOG_LEVEL=error
+export HTTPX_LOG_LEVEL=warning
 export DISPLAY=:99
 export MOZ_SANDBOX_DISABLE=1
 export MOZ_DISABLE_CONTENT_SANDBOX=1
