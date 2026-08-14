@@ -29,6 +29,9 @@ PERMISSIONS_ORIGIN = "https://example.com"
 # должно совпадать с количеством путей в --load-extension в Dockerfile/start.sh
 EXPECTED_EXTENSIONS_COUNT = 7
 
+def hard_exit():
+    import os
+    os._exit(0)
 
 def log(step: str, ok: bool, extra: str = "") -> None:
     mark = "OK  " if ok else "FAIL"
@@ -509,7 +512,7 @@ def main(query: str, seed: str) -> None:
         run_capability_smoke_test(context)
         run_yandex_search_scenario(context, query)
 
-        browser.close()
+        hard_exit()
 
 
 if __name__ == "__main__":
