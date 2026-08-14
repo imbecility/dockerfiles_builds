@@ -279,8 +279,9 @@ jobs:
               --expose "$SERVICE_PORT" \
               --publish-port "$SERVICE_PORT:$SERVICE_PORT" \
               --http-probe-off \
+              --rta-source-ptrace=false \
+              --cro-shm-size 2147483648 \
               --show-clogs \
-              --sensor-ipc-mode direct \
               $SLIM_EXTRA_FLAGS \
               --host-exec "python3 -u $TEST_SCRIPT"
           else
