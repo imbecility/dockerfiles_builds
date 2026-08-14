@@ -35,10 +35,6 @@ ASSETS_DIR.mkdir(parents=True, exist_ok=True)
 PERMISSIONS_ORIGIN = "https://example.com"
 
 
-def hard_exit():
-    import os
-    os._exit(0)
-
 def log(step: str, ok: bool, extra: str = "") -> None:
     mark = "OK  " if ok else "FAIL"
     suffix = f" — {extra}" if extra else ""
@@ -498,8 +494,10 @@ def main() -> None:
         page = context.new_page()
         page.goto("https://example.com", wait_until="domcontentloaded")
         print(f'заголовок страницы: "{page.title()}"')
-
-        hard_exit()
+        page.close()
+        context.close()
+        browser.close()
+    time.sleep(10)
 
 
 if __name__ == "__main__":
