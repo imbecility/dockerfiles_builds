@@ -271,6 +271,13 @@ jobs:
             done < "$PRESERVE_FILE"
           fi
 
+          # Отключаем коллизию Seccomp + Ptrace на уровне Docker HostConfig
+          echo '{
+            "SecurityOpt": ["seccomp=unconfined", "apparmor=unconfined"],
+            "CapAdd": ["ALL"],
+            "ShmSize": 2147483648
+          }' > /tmp/host_config.json
+
           if [ -n "$TEST_SCRIPT" ]; then
             echo "=== Запуск SlimToolkit с тестом: $TEST_SCRIPT ==="
             slim build \
@@ -278,10 +285,8 @@ jobs:
               --tag ${{ steps.names.outputs.tag }} \
               --expose "$SERVICE_PORT" \
               --publish-port "$SERVICE_PORT:$SERVICE_PORT" \
+              --cro-host-config-file /tmp/host_config.json \
               --http-probe-off \
-              --rta-source-ptrace=false \
-              --include-cert-bundles-only \
-              --cro-shm-size 2147483648 \
               --show-clogs \
               $SLIM_EXTRA_FLAGS \
               --host-exec "python3 -u $TEST_SCRIPT"
@@ -292,9 +297,7 @@ jobs:
               --tag ${{ steps.names.outputs.tag }} \
               --expose "$SERVICE_PORT" \
               --publish-port "$SERVICE_PORT:$SERVICE_PORT" \
-              --rta-source-ptrace=false \
-              --include-cert-bundles-only \
-              --cro-shm-size 2147483648 \
+              --cro-host-config-file /tmp/host_config.json \
               --show-clogs \
               $SLIM_EXTRA_FLAGS \
               --http-probe-ports "$SERVICE_PORT"
