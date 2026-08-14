@@ -378,6 +378,8 @@ def run_capability_smoke_test(context: BrowserContext) -> None:
     run_step("шрифты и письменности", test_fonts_and_scripts, context)
 
 
+# В ./Camoufox/test.py в main():
+
 def main() -> None:
     with sync_playwright() as p:
         browser = wait_for_ws_server(p, WS_URL, timeout=40)
@@ -385,11 +387,15 @@ def main() -> None:
 
         run_capability_smoke_test(context)
 
+        # Реальный переход на внешний HTTPS сайт с ожиданием подтверждения сети (commit)
         page = context.new_page()
-        attach_network_logger(page)
-        print("-> Начинаем переход на https://example.com в main...", flush=True)
-        page.goto("https://example.com", wait_until="domcontentloaded", timeout=20000)
-        print(f'заголовок страницы: "{page.title()}"', flush=True)
+        page.goto("https://example.com", wait_until="commit", timeout=20000)
+        page.wait_for_load_state("domcontentloaded", timeout=10000)
+
+        title = page.title()
+        print(f'заголовок страницы: "{title}"', flush=True)
+        assert "Example" in title, f"Неожиданный заголовок: {title}"
+
         page.close()
 
         context.close()
