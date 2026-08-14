@@ -276,10 +276,11 @@ jobs:
             slim build \
               --target ${{ steps.names.outputs.service_lower }}:orig \
               --tag ${{ steps.names.outputs.tag }} \
+              --image-build-engine docker \
+              --rta-source-ptrace=false \
               --expose "$SERVICE_PORT" \
               --publish-port "$SERVICE_PORT:$SERVICE_PORT" \
               --http-probe-off \
-              --rta-source-ptrace=false \
               --cro-shm-size 2147483648 \
               --show-clogs \
               $SLIM_EXTRA_FLAGS \
@@ -289,9 +290,10 @@ jobs:
             slim build \
               --target ${{ steps.names.outputs.service_lower }}:orig \
               --tag ${{ steps.names.outputs.tag }} \
+              --image-build-engine docker \
+              --rta-source-ptrace=false \
               --expose "$SERVICE_PORT" \
               --publish-port "$SERVICE_PORT:$SERVICE_PORT" \
-              --rta-source-ptrace=false \
               --cro-shm-size 2147483648 \
               --show-clogs \
               $SLIM_EXTRA_FLAGS \

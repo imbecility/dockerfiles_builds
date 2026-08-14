@@ -38,9 +38,6 @@ cat /app/resolv.conf > /etc/resolv.conf
 touch /.dockerenv
 export HTTPX_LOG_LEVEL=warning
 export DISPLAY=:99
-export MOZ_SANDBOX_DISABLE=1
-export MOZ_DISABLE_CONTENT_SANDBOX=1
-export MOZ_DISABLE_SOCKET_PROCESS_SANDBOX=1
 
 Xvfb :99 -screen 0 1920x1080x24 -nolisten tcp &
 
