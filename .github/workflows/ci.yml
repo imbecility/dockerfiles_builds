@@ -300,6 +300,34 @@ jobs:
               --http-probe-ports "$SERVICE_PORT"
           fi
 
+      # Диагностический прогон напрямую на оригинальном образе (без SlimToolkit)
+      - name: Diagnostic Direct Run (Bypass Slim)
+        run: |
+          SERVICE_LOWER="${{ steps.names.outputs.service_lower }}"
+          SERVICE_PORT=$(docker inspect "${SERVICE_LOWER}:orig" \
+            --format '{{json .Config.ExposedPorts}}' \
+            | python3 -c "import sys, json; d = json.load(sys.stdin); print(list(d.keys())[0].split('/')[0])")
+
+          echo "=== Запуск диагностического контейнера ${SERVICE_LOWER}:orig на порту ${SERVICE_PORT} ==="
+          CONTAINER_ID=$(docker run -d -p "${SERVICE_PORT}:${SERVICE_PORT}" "${SERVICE_LOWER}:orig")
+
+          # при любом исходе (успех / ошибка / отмена) выводим логи и удаляем контейнер
+          cleanup() {
+            EXIT_CODE=$?
+            echo "==================== ЛОГИ КОНТЕЙНЕРА ===================="
+            docker logs "$CONTAINER_ID"
+            echo "========================================================"
+            docker rm -f "$CONTAINER_ID" >/dev/null 2>&1 || true
+            exit $EXIT_CODE
+          }
+          trap cleanup EXIT
+
+          TEST_SCRIPT="./${{ matrix.service }}/test.py"
+          if [ -f "$TEST_SCRIPT" ]; then
+            echo "=== Запуск теста: $TEST_SCRIPT ==="
+            python3 -u "$TEST_SCRIPT"
+          fi
+
       # 4. Публикуем ТОЛЬКО оптимизированный образ в GHCR
       - name: Push Minified Image to GHCR
         run: |
