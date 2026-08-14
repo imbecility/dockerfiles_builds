@@ -280,6 +280,7 @@ jobs:
               --publish-port "$SERVICE_PORT:$SERVICE_PORT" \
               --http-probe-off \
               --show-clogs \
+              --sensor-ipc-mode direct \
               $SLIM_EXTRA_FLAGS \
               --host-exec "python3 -u $TEST_SCRIPT"
           else
