@@ -286,6 +286,7 @@ jobs:
               --cro-shm-size 2147483648 \
               --exclude-pattern="/tmp/**" \
               --exclude-pattern="/dev/shm/**" \
+              --mount type=tmpfs,destination=/tmp \
               --show-clogs \
               $SLIM_EXTRA_FLAGS \
               --host-exec "python -u $TEST_SCRIPT"
@@ -300,6 +301,7 @@ jobs:
               --cro-shm-size 2147483648 \
               --exclude-pattern="/tmp/**" \
               --exclude-pattern="/dev/shm/**" \
+              --mount type=tmpfs,destination=/tmp \
               --show-clogs \
               $SLIM_EXTRA_FLAGS \
               --http-probe-ports "$SERVICE_PORT"
