@@ -233,7 +233,7 @@ jobs:
           sudo cp -a /tmp/dist_linux/* /usr/local/bin/
           slim --version
 
-# 3. Запускаем автоматическую оптимизацию через SlimToolkit
+      # 3. Запускаем автоматическую оптимизацию через SlimToolkit
       - name: Optimize Docker Image
         run: |
           TEST_SCRIPT=""
@@ -282,9 +282,8 @@ jobs:
               --expose "$SERVICE_PORT" \
               --publish-port "$SERVICE_PORT:$SERVICE_PORT" \
               --http-probe-off \
-              --include-cert-pkgs=true \
-              --include-net=true \
-              --continue-after host-exec \
+              --rta-source-ptrace=false \
+              --cro-shm-size 2147483648 \
               --show-clogs \
               $SLIM_EXTRA_FLAGS \
               --host-exec "python -u $TEST_SCRIPT"
@@ -295,8 +294,8 @@ jobs:
               --tag ${{ steps.names.outputs.tag }} \
               --expose "$SERVICE_PORT" \
               --publish-port "$SERVICE_PORT:$SERVICE_PORT" \
-              --include-cert-pkgs=true \
-              --include-net=true \
+              --rta-source-ptrace=false \
+              --cro-shm-size 2147483648 \
               --show-clogs \
               $SLIM_EXTRA_FLAGS \
               --http-probe-ports "$SERVICE_PORT"
