@@ -225,14 +225,12 @@ jobs:
             echo "Специфичная версия Playwright не обнаружена, используется установленная по умолчанию."
           fi
 
-      # 2. Устанавливаем стабильный SlimToolkit 1.41.8
+      # 2. Устанавливаем SlimToolkit
       - name: Install SlimToolkit
         run: |
-          curl -sL "https://github.com/mintoolkit/mint/releases/download/1.41.8/dist_linux.tar.gz" -o /tmp/ds.tar.gz
+          curl -sL "https://github.com/slimtoolkit/slim/releases/latest/download/dist_linux.tar.gz" -o /tmp/ds.tar.gz
           tar -xvf /tmp/ds.tar.gz -C /tmp
           sudo cp -a /tmp/dist_linux/* /usr/local/bin/
-          # Создаём симлинк slim -> mint, если его нет
-          sudo ln -sf /usr/local/bin/mint /usr/local/bin/slim 2>/dev/null || true
           slim --version
 
       # 3. Запускаем автоматическую оптимизацию через SlimToolkit
@@ -255,7 +253,6 @@ jobs:
           fi
           echo "Определён порт сервиса: $SERVICE_PORT"
 
-          # Сбор путей через --include-path (стабильное сохранение без диффа памяти)
           SLIM_EXTRA_FLAGS=""
           PRESERVE_FILE="./${{ matrix.service }}/preserve_paths.txt"
           if [ -f "$PRESERVE_FILE" ]; then
@@ -266,8 +263,8 @@ jobs:
                 ''|'#'*) continue ;;
               esac
               if docker run --rm "${{ steps.names.outputs.service_lower }}:orig" test -e "$path"; then
-                echo "  -> [V] $path существует, добавляем --include-path"
-                SLIM_EXTRA_FLAGS="$SLIM_EXTRA_FLAGS --include-path $path"
+                echo "  -> [V] $path существует, добавляем --preserve-path"
+                SLIM_EXTRA_FLAGS="$SLIM_EXTRA_FLAGS --preserve-path $path"
               else
                 echo "  -> [X] $path не найден в образе, пропускаем"
               fi
@@ -282,8 +279,6 @@ jobs:
               --expose "$SERVICE_PORT" \
               --publish-port "$SERVICE_PORT:$SERVICE_PORT" \
               --http-probe-off \
-              --rta-source-ptrace=false \
-              --cro-shm-size 2147483648 \
               --show-clogs \
               $SLIM_EXTRA_FLAGS \
               --host-exec "python3 -u $TEST_SCRIPT"
@@ -294,8 +289,6 @@ jobs:
               --tag ${{ steps.names.outputs.tag }} \
               --expose "$SERVICE_PORT" \
               --publish-port "$SERVICE_PORT:$SERVICE_PORT" \
-              --rta-source-ptrace=false \
-              --cro-shm-size 2147483648 \
               --show-clogs \
               $SLIM_EXTRA_FLAGS \
               --http-probe-ports "$SERVICE_PORT"
