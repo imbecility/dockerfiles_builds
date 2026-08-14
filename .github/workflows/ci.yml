@@ -228,9 +228,11 @@ jobs:
       # 2. Устанавливаем стабильный SlimToolkit 1.41.8
       - name: Install SlimToolkit
         run: |
-          curl -sL https://github.com/mintoolkit/mint/releases/download/1.41.8/dist_linux.tar.gz" -o /tmp/ds.tar.gz
+          curl -sL "https://github.com/mintoolkit/mint/releases/download/1.41.8/dist_linux.tar.gz" -o /tmp/ds.tar.gz
           tar -xvf /tmp/ds.tar.gz -C /tmp
           sudo cp -a /tmp/dist_linux/* /usr/local/bin/
+          # Создаём симлинк slim -> mint, если его нет
+          sudo ln -sf /usr/local/bin/mint /usr/local/bin/slim 2>/dev/null || true
           slim --version
 
       # 3. Запускаем автоматическую оптимизацию через SlimToolkit
