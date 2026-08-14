@@ -279,7 +279,6 @@ jobs:
               --expose "$SERVICE_PORT" \
               --publish-port "$SERVICE_PORT:$SERVICE_PORT" \
               --http-probe-off \
-              --rta-source-ptrace=false \
               --cro-shm-size 2147483648 \
               --show-clogs \
               $SLIM_EXTRA_FLAGS \
@@ -291,6 +290,7 @@ jobs:
               --tag ${{ steps.names.outputs.tag }} \
               --expose "$SERVICE_PORT" \
               --publish-port "$SERVICE_PORT:$SERVICE_PORT" \
+              --cro-shm-size 2147483648 \
               --show-clogs \
               $SLIM_EXTRA_FLAGS \
               --http-probe-ports "$SERVICE_PORT"
