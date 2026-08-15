@@ -29,7 +29,6 @@ PERMISSIONS_ORIGIN = "https://example.com"
 # должно совпадать с количеством путей в --load-extension в Dockerfile/start.sh
 EXPECTED_EXTENSIONS_COUNT = 7
 
-
 def log(step: str, ok: bool, extra: str = "") -> None:
     mark = "OK  " if ok else "FAIL"
     suffix = f" — {extra}" if extra else ""
@@ -511,7 +510,7 @@ def main(query: str, seed: str) -> None:
 
         context.close()
         browser.close()
-    time.sleep(10)
+
 
 if __name__ == "__main__":
     try:

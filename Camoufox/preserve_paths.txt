@@ -7,5 +7,5 @@
 # через `docker run --rm <образ> test -e <путь>` в ci.yml).
 
 # /home/name/.cache/camoufox
-# /root/.cache/camoufox
-# /root/.camoufox
+/root/.cache/camoufox
+/root/.camoufox

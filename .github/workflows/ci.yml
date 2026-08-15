@@ -225,10 +225,10 @@ jobs:
             echo "Специфичная версия Playwright не обнаружена, используется установленная по умолчанию."
           fi
 
-      # 2. Устанавливаем стабильный релиз SlimToolkit 1.40.12
+      # 2. Устанавливаем SlimToolkit
       - name: Install SlimToolkit
         run: |
-          curl -sL "https://github.com/mintoolkit/mint/releases/download/1.40.12/dist_linux.tar.gz" -o /tmp/ds.tar.gz
+          curl -sL "https://github.com/slimtoolkit/slim/releases/latest/download/dist_linux.tar.gz" -o /tmp/ds.tar.gz
           tar -xvf /tmp/ds.tar.gz -C /tmp
           sudo cp -a /tmp/dist_linux/* /usr/local/bin/
           # Создаём симлинки на случай разных имён бинарников (slim / docker-slim / mint)
@@ -258,7 +258,7 @@ jobs:
           SLIM_EXTRA_FLAGS=""
           PRESERVE_FILE="./${{ matrix.service }}/preserve_paths.txt"
           if [ -f "$PRESERVE_FILE" ]; then
-            echo "Найден $PRESERVE_FILE, проверяем пути..."
+            echo "Найден $PRESERVE_FILE, проверяем пути внутри образа..."
             while IFS= read -r p || [ -n "$p" ]; do
               path=$(echo "$p" | xargs)
               case "$path" in
@@ -267,16 +267,11 @@ jobs:
               if docker run --rm "${{ steps.names.outputs.service_lower }}:orig" test -e "$path"; then
                 echo "  -> [V] $path существует, добавляем --preserve-path"
                 SLIM_EXTRA_FLAGS="$SLIM_EXTRA_FLAGS --preserve-path $path"
+              else
+                echo "  -> [X] $path не найден в образе, пропускаем"
               fi
             done < "$PRESERVE_FILE"
           fi
-
-          # Отключаем коллизию Seccomp + Ptrace на уровне Docker HostConfig
-          echo '{
-            "SecurityOpt": ["seccomp=unconfined", "apparmor=unconfined"],
-            "CapAdd": ["ALL"],
-            "ShmSize": 2147483648
-          }' > /tmp/host_config.json
 
           if [ -n "$TEST_SCRIPT" ]; then
             echo "=== Запуск SlimToolkit с тестом: $TEST_SCRIPT ==="
@@ -285,7 +280,6 @@ jobs:
               --tag ${{ steps.names.outputs.tag }} \
               --expose "$SERVICE_PORT" \
               --publish-port "$SERVICE_PORT:$SERVICE_PORT" \
-              --cro-host-config-file /tmp/host_config.json \
               --http-probe-off \
               --show-clogs \
               $SLIM_EXTRA_FLAGS \
@@ -297,7 +291,6 @@ jobs:
               --tag ${{ steps.names.outputs.tag }} \
               --expose "$SERVICE_PORT" \
               --publish-port "$SERVICE_PORT:$SERVICE_PORT" \
-              --cro-host-config-file /tmp/host_config.json \
               --show-clogs \
               $SLIM_EXTRA_FLAGS \
               --http-probe-ports "$SERVICE_PORT"
