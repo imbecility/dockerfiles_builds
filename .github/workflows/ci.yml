@@ -1,3 +1,4 @@
+# ./.github/workflows/ci.yml
 name: Dynamic Build, Optimize and Publish
 
 on:
@@ -158,14 +159,14 @@ jobs:
           echo "service_lower=${SERVICE_LOWER}" >> $GITHUB_OUTPUT
           echo "tag=${IMAGE_TAG}:latest" >> $GITHUB_OUTPUT
 
-      # 1. Собираем обычный (fat) образ локально в Docker daemon
+      # Собираем исходный Fat образ
       - name: Build Fat Docker image
         uses: docker/build-push-action@v6
         with:
-          context: ./${{ matrix.service }}   # Сохраняет реальный путь к папке (CloackBrowser)
+          context: ./${{ matrix.service }} # Сохраняет реальный путь к папке
           push: false
           load: true
-          tags: ${{ steps.names.outputs.service_lower }}:orig  # Использует нижний регистр (cloackbrowser:orig)
+          tags: ${{ steps.names.outputs.service_lower }}:orig  # Использует нижний регистр
 
       # Синхронизация версии playwright на раннере с той, что реально запечена в образе.
       # Playwright-server (Camoufox) жёстко проверяет совпадение версий клиент/сервер: расхождение = "428 Precondition Required".
@@ -225,24 +226,23 @@ jobs:
             echo "Специфичная версия Playwright не обнаружена, используется установленная по умолчанию."
           fi
 
-      # 2. Устанавливаем SlimToolkit
+      # Устанавливаем SlimToolkit
       - name: Install SlimToolkit
         run: |
           curl -sL "https://github.com/slimtoolkit/slim/releases/latest/download/dist_linux.tar.gz" -o /tmp/ds.tar.gz
           tar -xvf /tmp/ds.tar.gz -C /tmp
           sudo cp -a /tmp/dist_linux/* /usr/local/bin/
-          # Создаём симлинки на случай разных имён бинарников (slim / docker-slim / mint)
-          sudo ln -sf /usr/local/bin/docker-slim /usr/local/bin/slim 2>/dev/null || sudo ln -sf /usr/local/bin/mint /usr/local/bin/slim 2>/dev/null || true
+          sudo ln -sf /usr/local/bin/docker-slim /usr/local/bin/slim 2>/dev/null || true
           slim --version
 
-      # 3. Запускаем автоматическую оптимизацию через SlimToolkit
+      # Оптимизация через Slim (выбирает probe.py, если есть, иначе test.py)
       - name: Optimize Docker Image
         run: |
-          TEST_SCRIPT=""
-          if [ -f "./${{ matrix.service }}/test.py" ]; then
-            TEST_SCRIPT="./${{ matrix.service }}/test.py"
-          elif [ -f "./${{ matrix.service }}/capability_smoke_test.py" ]; then
-            TEST_SCRIPT="./${{ matrix.service }}/capability_smoke_test.py"
+          PROBE_SCRIPT=""
+          if [ -f "./${{ matrix.service }}/probe.py" ]; then
+            PROBE_SCRIPT="./${{ matrix.service }}/probe.py"
+          elif [ -f "./${{ matrix.service }}/test.py" ]; then
+            PROBE_SCRIPT="./${{ matrix.service }}/test.py"
           fi
           
           SERVICE_PORT=$(docker inspect "${{ steps.names.outputs.service_lower }}:orig" \
@@ -273,8 +273,8 @@ jobs:
             done < "$PRESERVE_FILE"
           fi
 
-          if [ -n "$TEST_SCRIPT" ]; then
-            echo "=== Запуск SlimToolkit с тестом: $TEST_SCRIPT ==="
+          if [ -n "$PROBE_SCRIPT" ]; then
+            echo "=== Slim Probe с использованием: $PROBE_SCRIPT ==="
             slim build \
               --target ${{ steps.names.outputs.service_lower }}:orig \
               --tag ${{ steps.names.outputs.tag }} \
@@ -283,7 +283,7 @@ jobs:
               --http-probe-off \
               --show-clogs \
               $SLIM_EXTRA_FLAGS \
-              --host-exec "python3 -u $TEST_SCRIPT"
+              --host-exec "python3 -u $PROBE_SCRIPT"
           else
             echo "=== Тестовый скрипт не найден, запуск стандартного зондирования ==="
             slim build \
@@ -296,7 +296,35 @@ jobs:
               --http-probe-ports "$SERVICE_PORT"
           fi
 
-      # 4. Публикуем ТОЛЬКО оптимизированный образ в GHCR
+      # 5. ВЕРИФИКАЦИЯ: Запуск оптимизированного контейнера БЕЗ SlimToolkit и прогон полного test.py
+      - name: Verify Minified Image (Pure Docker Run)
+        run: |
+          TEST_SCRIPT="./${{ matrix.service }}/test.py"
+          if [ ! -f "$TEST_SCRIPT" ]; then
+            echo "test.py не найден, шаг верификации пропускается."
+            exit 0
+          fi
+
+          SERVICE_PORT=$(docker inspect "${{ steps.names.outputs.tag }}" \
+            --format '{{json .Config.ExposedPorts}}' \
+            | python3 -c "import sys, json; d = json.load(sys.stdin); print(list(d.keys())[0].split('/')[0])")
+
+          echo "Запуск сжатого контейнера для финального тестирования..."
+          CONTAINER_ID=$(docker run -d -p "$SERVICE_PORT:$SERVICE_PORT" ${{ steps.names.outputs.tag }})
+
+          # Функция очистки контейнера при завершении шага
+          cleanup() {
+            echo "Остановка проверочного контейнера..."
+            docker logs "$CONTAINER_ID" --tail 50 || true
+            docker rm -f "$CONTAINER_ID" || true
+          }
+          trap cleanup EXIT
+
+          echo "Запуск полного интеграционного теста ($TEST_SCRIPT)..."
+          python3 -u "$TEST_SCRIPT"
+          echo "=== ВЕРИФИКАЦИЯ ПРОЙДЕНА УСПЕШНО ==="
+
+      # 6. Публикуем ТОЛЬКО проверенный образ
       - name: Push Minified Image to GHCR
         run: |
           docker push ${{ steps.names.outputs.tag }}
