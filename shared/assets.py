@@ -1,22 +1,21 @@
 import base64
+import functools
 import io
 import shutil
 import subprocess
 import tempfile
 from pathlib import Path
 
-from playwright.sync_api import Browser, BrowserContext, Page, sync_playwright
-
-ASSETS_DIR = Path(tempfile.gettempdir()) / "assets"
+ASSETS_DIR = Path(tempfile.gettempdir()) / "browser_test_assets"
 ASSETS_DIR.mkdir(parents=True, exist_ok=True)
 
 
-def make_media_data_uris() -> dict:
-    assets = {}
+@functools.lru_cache(maxsize=1)
+def make_media_data_uris() -> dict[str, str]:
+    assets: dict[str, str] = {}
     ffmpeg = shutil.which("ffmpeg")
     if not ffmpeg:
-        print("ffmpeg не найден в PATH — пропускаю генерацию видео/аудио. "
-              "Проверьте, что linux_deps.txt подхвачен в CI.")
+        print("[WARN] ffmpeg не найден - генерация медиа пропущена.")
         return assets
 
     specs = [
@@ -27,9 +26,8 @@ def make_media_data_uris() -> dict:
     ]
     for ext, mime, args in specs:
         out_path = ASSETS_DIR / f"test.{ext}"
-        cmd = [ffmpeg, "-y", *args, str(out_path)]
         try:
-            subprocess.run(cmd, check=True, capture_output=True, timeout=30)
+            subprocess.run([ffmpeg, "-y", *args, str(out_path)], check=True, capture_output=True, timeout=30)
             b64 = base64.b64encode(out_path.read_bytes()).decode()
             assets[ext] = f"data:{mime};base64,{b64}"
         except Exception:
@@ -37,20 +35,18 @@ def make_media_data_uris() -> dict:
     return assets
 
 
-def make_image_assets() -> dict:
-    images: dict = {}
+@functools.lru_cache(maxsize=1)
+def make_image_assets() -> dict[str, str]:
+    images: dict[str, str] = {}
     try:
         from PIL import Image
         base = Image.new("RGB", (8, 8), color=(255, 0, 0))
         formats = {"png": "PNG", "jpeg": "JPEG", "gif": "GIF", "webp": "WEBP", "bmp": "BMP", "ico": "ICO"}
         for ext, fmt in formats.items():
-            try:
-                buf = io.BytesIO()
-                base.save(buf, format=fmt)
-                b64 = base64.b64encode(buf.getvalue()).decode()
-                images[ext] = f"data:image/{ext};base64,{b64}"
-            except Exception:
-                pass
+            buf = io.BytesIO()
+            base.save(buf, format=fmt)
+            b64 = base64.b64encode(buf.getvalue()).decode()
+            images[ext] = f"data:image/{ext};base64,{b64}"
     except ImportError:
         images["png"] = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII="
         images["gif"] = "data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///ywAAAAAAQABAAACAUwAOw=="
@@ -59,9 +55,8 @@ def make_image_assets() -> dict:
     images["svg"] = "data:image/svg+xml;base64," + base64.b64encode(svg.encode()).decode()
     return images
 
-
-def _make_minimal_pdf_bytes() -> bytes:
-    pdf = (
+def get_minimal_pdf_bytes() -> bytes:
+    return (
         b"%PDF-1.1\n"
         b"1 0 obj << /Type /Catalog /Pages 2 0 R >> endobj\n"
         b"2 0 obj << /Type /Pages /Kids [3 0 R] /Count 1 >> endobj\n"
@@ -69,4 +64,3 @@ def _make_minimal_pdf_bytes() -> bytes:
         b"trailer << /Size 4 /Root 1 0 R >>\n"
         b"%%EOF"
     )
-    return pdf
