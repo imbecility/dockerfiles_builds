@@ -53,7 +53,6 @@ if ! xdpyinfo -display :99 >/dev/null 2>&1; then
     exit 1
 fi
 
-curl -sS 2ip.me
 PORT="${PORT:-7861}"
 echo -e "\n==================================\nstarting firefox remote server...\nconnect:\nwith sync_playwright() as p:\n    browser = p.firefox.connect('ws://localhost:${PORT}/camoufox')\n==================================\n"
 exec python /app/server.py
