@@ -1,153 +1,21 @@
-"""
-Smoke-тест Camoufox (Firefox-движок через собственный WS-протокол Playwright,
-НЕ CDP). Отличия от Chromium-версии (CloackBrowser), на которые стоит обратить
-внимание при дальнейшей поддержке:
-
-  - `page.pdf()` в Playwright работает только для Chromium — для Firefox
-    вместо генерации PDF проверяем встроенный просмотрщик PDF.js.
-  - `context.new_cdp_session(...)` — Chromium-only, для Firefox недоступен,
-    поэтому MHTML-снапшот тут не делаем.
-  - вместо `chrome://...` у Firefox свои служебные страницы `about:...`.
-  - готовность сервера проверяем прямой попыткой WS-подключения (у Camoufox
-    нет HTTP-эндпоинта вида /json/version, как у CDP).
-  - расширения сейчас в server.py не подключены (нет `addons=[...]` в
-    launch_server) — соответствующую проверку добавите, когда появятся
-    реальные addon'ы (см. заметку в конце файла).
-"""
-
 import base64
-import io
-import shutil
-import subprocess
-import tempfile
+import sys
 import time
 from pathlib import Path
-from urllib.parse import quote
 
 from playwright.sync_api import Browser, BrowserContext, Page, sync_playwright
 
-WS_URL = "ws://localhost:7861/camoufox"
+from shared.assets import ASSETS_DIR, _make_minimal_pdf_bytes, make_media_data_uris, make_image_assets
+from shared.utils import set_html, run_step, wait_for_ws_server
 
-ASSETS_DIR = Path(tempfile.gettempdir()) / "camoufox_assets"
-ASSETS_DIR.mkdir(parents=True, exist_ok=True)
+ROOT_DIR = Path(__file__).resolve().parents[1]
+if str(ROOT_DIR) not in sys.path:
+    sys.path.insert(0, str(ROOT_DIR))
+
+WS_URL = "ws://localhost:7861/camoufox"
 
 PERMISSIONS_ORIGIN = "https://example.com"
 
-
-def log(step: str, ok: bool, extra: str = "") -> None:
-    mark = "OK  " if ok else "FAIL"
-    suffix = f" — {extra}" if extra else ""
-    print(f"[{mark}] {step}{suffix}", flush=True)
-
-
-def run_step(name, fn, *args, **kwargs) -> None:
-    try:
-        fn(*args, **kwargs)
-        log(name, True)
-    except Exception as e:  # noqa: BLE001
-        log(name, False, repr(e))
-
-
-def set_html(page: Page, html_content: str) -> None:
-    """Универсальная вставка HTML через data:URI — не зависит от того, в одном
-    ли сетевом namespace находятся тестовый скрипт (раннер) и сам браузер
-    (контейнер), т.к. `--host-exec` запускает test.py на раннере."""
-    page.goto(f"data:text/html;charset=utf-8,{quote(html_content)}", wait_until="domcontentloaded")
-
-
-# --------------------------------------------------------------------------
-# ожидание готовности WS-сервера
-# --------------------------------------------------------------------------
-
-def wait_for_ws_server(pw, url: str, timeout: int = 40) -> Browser:
-    """У Camoufox нет HTTP-эндпоинта вроде CDP /json/version — единственный
-    надёжный способ проверить готовность, это реально попытаться подключиться."""
-    print(f"Ожидание готовности Camoufox WS-сервера по адресу {url}...")
-    start = time.time()
-    last_err = None
-    while time.time() - start < timeout:
-        try:
-            browser = pw.firefox.connect(url, timeout=5000)
-            print("WS-сервер Camoufox готов, подключение установлено.")
-            return browser
-        except Exception as e:  # noqa: BLE001
-            last_err = e
-            time.sleep(1)
-    raise RuntimeError(f"не удалось подключиться к {url} за {timeout}с: {last_err}")
-
-
-# --------------------------------------------------------------------------
-# генерация ассетов (идентично CloackBrowser — переиспользуйте общий модуль,
-# если заведёте shared/-папку между сервисами)
-# --------------------------------------------------------------------------
-
-def make_media_data_uris() -> dict:
-    assets = {}
-    ffmpeg = shutil.which("ffmpeg")
-    if not ffmpeg:
-        print("ffmpeg не найден в PATH — пропускаю генерацию видео/аудио. "
-              "Проверьте, что linux_deps.txt подхвачен в CI.")
-        return assets
-
-    specs = [
-        ("mp4", "video/mp4", ["-f", "lavfi", "-i", "testsrc=size=320x240:rate=10:duration=2", "-f", "lavfi", "-i", "sine=frequency=440:duration=2", "-c:v", "libx264", "-c:a", "aac", "-shortest"]),
-        ("webm", "video/webm", ["-f", "lavfi", "-i", "testsrc=size=320x240:rate=10:duration=2", "-f", "lavfi", "-i", "sine=frequency=440:duration=2", "-c:v", "libvpx-vp9", "-c:a", "libopus", "-shortest"]),
-        ("mp3", "audio/mp3", ["-f", "lavfi", "-i", "sine=frequency=440:duration=2", "-c:a", "libmp3lame"]),
-        ("ogg", "audio/ogg", ["-f", "lavfi", "-i", "sine=frequency=440:duration=2", "-c:a", "libvorbis"]),
-    ]
-    for ext, mime, args in specs:
-        out_path = ASSETS_DIR / f"test.{ext}"
-        cmd = [ffmpeg, "-y", *args, str(out_path)]
-        try:
-            subprocess.run(cmd, check=True, capture_output=True, timeout=30)
-            b64 = base64.b64encode(out_path.read_bytes()).decode()
-            assets[ext] = f"data:{mime};base64,{b64}"
-        except Exception:
-            pass
-    return assets
-
-
-def make_image_assets() -> dict:
-    images: dict = {}
-    try:
-        from PIL import Image
-        base = Image.new("RGB", (8, 8), color=(255, 0, 0))
-        formats = {"png": "PNG", "jpeg": "JPEG", "gif": "GIF", "webp": "WEBP", "bmp": "BMP", "ico": "ICO"}
-        for ext, fmt in formats.items():
-            try:
-                buf = io.BytesIO()
-                base.save(buf, format=fmt)
-                b64 = base64.b64encode(buf.getvalue()).decode()
-                images[ext] = f"data:image/{ext};base64,{b64}"
-            except Exception:
-                pass
-    except ImportError:
-        images["png"] = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII="
-        images["gif"] = "data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///ywAAAAAAQABAAACAUwAOw=="
-
-    svg = '<svg xmlns="http://www.w3.org/2000/svg" width="8" height="8"><rect width="8" height="8" fill="blue"/></svg>'
-    images["svg"] = "data:image/svg+xml;base64," + base64.b64encode(svg.encode()).decode()
-    return images
-
-
-def _make_minimal_pdf_bytes() -> bytes:
-    """Минимальный валидный (насколько это в принципе бывает у PDF) документ
-    для проверки PDF.js. xref-офсеты не гарантированно точные — PDF.js это
-    переживает через собственный fallback-парсинг повреждённых файлов."""
-    pdf = (
-        b"%PDF-1.1\n"
-        b"1 0 obj << /Type /Catalog /Pages 2 0 R >> endobj\n"
-        b"2 0 obj << /Type /Pages /Kids [3 0 R] /Count 1 >> endobj\n"
-        b"3 0 obj << /Type /Page /Parent 2 0 R /MediaBox [0 0 200 200] >> endobj\n"
-        b"trailer << /Size 4 /Root 1 0 R >>\n"
-        b"%%EOF"
-    )
-    return pdf
-
-
-# --------------------------------------------------------------------------
-# отдельные проверки
-# --------------------------------------------------------------------------
 
 def test_navigation_variants(context: BrowserContext) -> None:
     page = context.new_page()
@@ -186,9 +54,6 @@ def test_screenshots(context: BrowserContext) -> None:
 
 
 def test_pdf_handling(context: BrowserContext) -> None:
-    """Chromium-only page.pdf() тут недоступен — вместо генерации PDF
-    проверяем, что встроенный PDF.js в состоянии обработать PDF-файл
-    (либо отрендерить во вьюере, либо скачать — оба пути трогают нужный код)."""
     b64 = base64.b64encode(_make_minimal_pdf_bytes()).decode()
     data_uri = f"data:application/pdf;base64,{b64}"
 
@@ -350,10 +215,6 @@ def test_fonts_and_scripts(context: BrowserContext) -> None:
     finally:
         page.close()
 
-
-# --------------------------------------------------------------------------
-# оркестрация
-# --------------------------------------------------------------------------
 
 def run_capability_smoke_test(context: BrowserContext) -> None:
     media_uris = make_media_data_uris()
