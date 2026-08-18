@@ -21,7 +21,12 @@ if __name__ == "__main__":
         "i_know_what_im_doing": True,
         "config": {
             "forceScopeAccess": True
-        }
+        },
+        "firefox_user_prefs": {
+            "webgl.force-enabled": True,
+            "webgl.disabled": False,
+            "layers.acceleration.force-enabled": True,
+        },
     }
 
     proxy_url = os.getenv("PROXY_SERVER")

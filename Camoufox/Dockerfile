@@ -42,11 +42,9 @@ export LIBGL_ALWAYS_SOFTWARE=1
 export GALLIUM_DRIVER=llvmpipe
 export MESA_GL_VERSION_OVERRIDE=4.5
 export MESA_GLSL_VERSION_OVERRIDE=450
-
 # 2. Переменные для Firefox / Camoufox
 export MOZ_WEBRENDER=1
 export MOZ_ACCELERATED=1
-
 # 3. Запуск Xvfb с полным набором расширений
 Xvfb :99 \
     -screen 0 1920x1080x24+32 \

@@ -85,7 +85,7 @@ PORT="${PORT:-7860}"
 GPU="${GPU:-true}"
 case "$GPU" in
     true|1|yes|on)
-        GPU_FLAGS=(--use-gl=angle --use-angle=swiftshader)
+        GPU_FLAGS=(--use-gl=angle --use-angle=swiftshader --enable-unsafe-swiftshader --ignore-gpu-blocklist)
         ;;
     *)
         GPU_FLAGS=(--disable-gpu --disable-vulkan)
