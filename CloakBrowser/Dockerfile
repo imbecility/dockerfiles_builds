@@ -19,7 +19,7 @@ RUN echo "deb http://deb.debian.org/debian trixie contrib" >> /etc/apt/sources.l
     libgdk-pixbuf-2.0-0 libxss1 libxtst6 fonts-liberation \
     fonts-noto-color-emoji fonts-unifont fonts-freefont-ttf \
     fonts-ipafont-gothic fonts-wqy-zenhei fonts-tlwg-loma-otf \
-    libgl1-mesa-dri libegl-mesa0 xvfb x11-utils mesa-utils xdotool libglx-mesa0 \
+    libgl1-mesa-dri libegl-mesa0 xvfb x11-utils mesa-utils xdotool libglx-mesa0 libgl1 libegl1 libglvnd0 \
     procps xclip ffmpeg unzip privoxy ttf-mscorefonts-installer && \
     curl -fsSL https://deb.nodesource.com/setup_20.x | bash - && \
     apt-get install -y --no-install-recommends nodejs && \
@@ -92,6 +92,16 @@ case "$GPU" in
         ;;
 esac
 echo -e "\n==================================\nstarting chromium cdp server...\nconnect:\nwith sync_playwright() as p:\n    browser = p.chromium.connect_over_cdp('http://host:port/?fingerprint=<seed>')\n==================================\n"
+
+echo '\n\n--- diagnostic start ---\n'
+echo '--- glxinfo ---'
+glxinfo -B 2>&1 || echo 'glxinfo FAILED'
+echo '--- eglinfo ---'
+eglinfo 2>&1 || echo 'eglinfo FAILED (может не быть установлен — тогда просто ldconfig -p ниже)'
+echo '--- какие библиотеки реально видны линкеру ---'
+ldconfig -p | grep -Ei 'libgl\.|libegl\.|libglx|libegl_mesa|swrast'
+echo '\n--- diagnostic end ---\n\n'
+
 exec /app/.venv/bin/cloakserve \
     --port="${PORT}" \
 	--host=0.0.0.0 \

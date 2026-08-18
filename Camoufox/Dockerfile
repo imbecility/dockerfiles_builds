@@ -17,7 +17,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     libxcb1 libxext6 libxshmfence1 \
     libglib2.0-0 libgtk-3-0 libpangocairo-1.0-0 libcairo-gobject2 \
     libgdk-pixbuf-2.0-0 libxss1 libxtst6 fonts-liberation \
-    libgl1-mesa-dri libegl-mesa0 xvfb x11-utils mesa-utils xdotool libglx-mesa0 && \
+    libgl1-mesa-dri libegl-mesa0 xvfb x11-utils mesa-utils xdotool libglx-mesa0 libgl1 libegl1 libglvnd0 && \
     mkdir -p /root/.camoufox && \
     uv venv --python 3.14 && uv pip install pip && \
     pip install --no-cache-dir playwright && playwright install-deps firefox 2>/dev/null || true && pip uninstall -y playwright && \
@@ -68,6 +68,15 @@ if ! xdpyinfo -display :99 >/dev/null 2>&1; then
     echo "Xvfb не поднялся за отведенное время!" >&2
     exit 1
 fi
+
+echo '\n\n--- diagnostic start ---\n'
+echo '--- glxinfo ---'
+glxinfo -B 2>&1 || echo 'glxinfo FAILED'
+echo '--- eglinfo ---'
+eglinfo 2>&1 || echo 'eglinfo FAILED (может не быть установлен — тогда просто ldconfig -p ниже)'
+echo '--- какие библиотеки реально видны линкеру ---'
+ldconfig -p | grep -Ei 'libgl\.|libegl\.|libglx|libegl_mesa|swrast'
+echo '\n--- diagnostic end ---\n\n'
 
 PORT="${PORT:-7861}"
 echo -e "\n==================================\nstarting firefox remote server...\nconnect:\nwith sync_playwright() as p:\n    browser = p.firefox.connect('ws://localhost:${PORT}/camoufox')\n==================================\n"
