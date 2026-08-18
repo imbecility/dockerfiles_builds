@@ -18,7 +18,7 @@ RUN echo "deb http://deb.debian.org/debian trixie contrib" >> /etc/apt/sources.l
     libgdk-pixbuf-2.0-0 libxss1 libxtst6 fonts-liberation \
     fonts-noto-color-emoji fonts-unifont fonts-freefont-ttf \
     fonts-ipafont-gothic fonts-wqy-zenhei fonts-tlwg-loma-otf \
-    libgl1-mesa-dri libegl-mesa0 xvfb x11-utils mesa-utils xdotool libglx-mesa0 libgl1 libegl1 libglvnd0 \
+    libgl1-mesa-dri libegl-mesa0 xvfb x11-utils xdotool \
     procps xclip ffmpeg unzip privoxy ttf-mscorefonts-installer && \
     curl -fsSL https://deb.nodesource.com/setup_20.x | bash - && \
     apt-get install -y --no-install-recommends nodejs && \
@@ -81,15 +81,6 @@ if ! xdpyinfo -display :99 >/dev/null 2>&1; then
 fi
 
 PORT="${PORT:-7860}"
-GPU="${GPU:-true}"
-case "$GPU" in
-    true|1|yes|on)
-        GPU_FLAGS=(--use-gl=angle --use-angle=swiftshader --enable-unsafe-swiftshader)
-        ;;
-    *)
-        GPU_FLAGS=(--disable-gpu --disable-vulkan)
-        ;;
-esac
 echo -e "\n==================================\nstarting chromium cdp server...\nconnect:\nwith sync_playwright() as p:\n    browser = p.chromium.connect_over_cdp('http://host:port/?fingerprint=<seed>')\n==================================\n"
 exec /app/.venv/bin/cloakserve \
     --port="${PORT}" \
@@ -97,7 +88,8 @@ exec /app/.venv/bin/cloakserve \
     --log-level=3 \
     --no-sandbox \
     --disable-setuid-sandbox \
-    "${GPU_FLAGS[@]}" \
+    --disable-gpu \
+    --disable-vulkan \
     --window-size=1920,1080 \
     --start-maximized \
     --headless=false \
