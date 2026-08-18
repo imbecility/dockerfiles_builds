@@ -2,8 +2,7 @@ FROM debian:stable-slim
 
 COPY --from=ghcr.io/astral-sh/uv:latest /uv /uvx /bin/
 ENV PATH="/app/.venv/bin:$PATH" \
-    PORT=7860 \
-    GPU=true
+    PORT=7860
 WORKDIR /app
 
 RUN echo "deb http://deb.debian.org/debian trixie contrib" >> /etc/apt/sources.list.d/contrib.list && \
@@ -85,23 +84,13 @@ PORT="${PORT:-7860}"
 GPU="${GPU:-true}"
 case "$GPU" in
     true|1|yes|on)
-        GPU_FLAGS=(--use-gl=angle --use-angle=swiftshader --enable-unsafe-swiftshader --ignore-gpu-blocklist)
+        GPU_FLAGS=(--use-gl=angle --use-angle=swiftshader --enable-unsafe-swiftshader)
         ;;
     *)
         GPU_FLAGS=(--disable-gpu --disable-vulkan)
         ;;
 esac
 echo -e "\n==================================\nstarting chromium cdp server...\nconnect:\nwith sync_playwright() as p:\n    browser = p.chromium.connect_over_cdp('http://host:port/?fingerprint=<seed>')\n==================================\n"
-
-echo '\n\n--- diagnostic start ---\n'
-echo '--- glxinfo ---'
-glxinfo -B 2>&1 || echo 'glxinfo FAILED'
-echo '--- eglinfo ---'
-eglinfo 2>&1 || echo 'eglinfo FAILED (может не быть установлен — тогда просто ldconfig -p ниже)'
-echo '--- какие библиотеки реально видны линкеру ---'
-ldconfig -p | grep -Ei 'libgl\.|libegl\.|libglx|libegl_mesa|swrast'
-echo '\n--- diagnostic end ---\n\n'
-
 exec /app/.venv/bin/cloakserve \
     --port="${PORT}" \
 	--host=0.0.0.0 \

@@ -37,15 +37,11 @@ cat /app/resolv.conf > /etc/resolv.conf
 touch /.dockerenv
 export HTTPX_LOG_LEVEL=warning
 export DISPLAY=:99
-# 1. Форсируем программный рендеринг Mesa (llvmpipe) на CPU
+# программный рендеринг Mesa (llvmpipe) на CPU
 export LIBGL_ALWAYS_SOFTWARE=1
 export GALLIUM_DRIVER=llvmpipe
 export MESA_GL_VERSION_OVERRIDE=4.5
 export MESA_GLSL_VERSION_OVERRIDE=450
-# 2. Переменные для Firefox / Camoufox
-export MOZ_WEBRENDER=1
-export MOZ_ACCELERATED=1
-# 3. Запуск Xvfb с полным набором расширений
 Xvfb :99 \
     -screen 0 1920x1080x24+32 \
     -ac \
@@ -68,15 +64,6 @@ if ! xdpyinfo -display :99 >/dev/null 2>&1; then
     echo "Xvfb не поднялся за отведенное время!" >&2
     exit 1
 fi
-
-echo '\n\n--- diagnostic start ---\n'
-echo '--- glxinfo ---'
-glxinfo -B 2>&1 || echo 'glxinfo FAILED'
-echo '--- eglinfo ---'
-eglinfo 2>&1 || echo 'eglinfo FAILED (может не быть установлен — тогда просто ldconfig -p ниже)'
-echo '--- какие библиотеки реально видны линкеру ---'
-ldconfig -p | grep -Ei 'libgl\.|libegl\.|libglx|libegl_mesa|swrast'
-echo '\n--- diagnostic end ---\n\n'
 
 PORT="${PORT:-7861}"
 echo -e "\n==================================\nstarting firefox remote server...\nconnect:\nwith sync_playwright() as p:\n    browser = p.firefox.connect('ws://localhost:${PORT}/camoufox')\n==================================\n"
