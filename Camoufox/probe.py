@@ -18,6 +18,14 @@ def main() -> None:
         context = browser.new_context()
         context.set_default_timeout(15000)
         run_firefox_smoke_suite(context, extended=False)
+        try:
+            context.set_default_timeout(10000)
+            page = context.new_page()
+            page.goto("https://ya.ru", wait_until="domcontentloaded")
+            print(f'заголовок страницы: "{page.title()}"')
+            page.close()
+        except:
+            pass
         context.close()
         browser.close()
 
