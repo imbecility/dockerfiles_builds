@@ -17,7 +17,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     libxcb1 libxext6 libxshmfence1 \
     libglib2.0-0 libgtk-3-0 libpangocairo-1.0-0 libcairo-gobject2 \
     libgdk-pixbuf-2.0-0 libxss1 libxtst6 fonts-liberation \
-    libgl1-mesa-dri libegl-mesa0 xvfb x11-utils xdotool && \
+    libgl1-mesa-dri libegl-mesa0 xvfb x11-utils mesa-utils xdotool libglx-mesa0 && \
     mkdir -p /root/.camoufox && \
     uv venv --python 3.14 && uv pip install pip && \
     pip install --no-cache-dir playwright && playwright install-deps firefox 2>/dev/null || true && pip uninstall -y playwright && \
@@ -37,8 +37,26 @@ cat /app/resolv.conf > /etc/resolv.conf
 touch /.dockerenv
 export HTTPX_LOG_LEVEL=warning
 export DISPLAY=:99
+# 1. Форсируем программный рендеринг Mesa (llvmpipe) на CPU
+export LIBGL_ALWAYS_SOFTWARE=1
+export GALLIUM_DRIVER=llvmpipe
+export MESA_GL_VERSION_OVERRIDE=4.5
+export MESA_GLSL_VERSION_OVERRIDE=450
 
-Xvfb :99 -screen 0 1920x1080x24 -nolisten tcp &
+# 2. Переменные для Firefox / Camoufox
+export MOZ_WEBRENDER=1
+export MOZ_ACCELERATED=1
+
+# 3. Запуск Xvfb с полным набором расширений
+Xvfb :99 \
+    -screen 0 1920x1080x24+32 \
+    -ac \
+    -noreset \
+    -nolisten tcp \
+    +extension GLX \
+    +extension RENDER \
+    +extension RANDR \
+    +iglx &
 
 # ждём, пока Xvfb реально начнёт принимать соединения
 for i in $(seq 1 20); do
