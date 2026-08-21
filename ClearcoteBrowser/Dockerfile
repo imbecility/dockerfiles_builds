@@ -6,8 +6,7 @@ ENV PATH="/app/.venv/bin:$PATH" \
     PORT=9222 \
     FINGERPRINT="seed-123" \
     PLATFORM="linux" \
-    # Явный путь кэша — clearcote.download() и clearcote-serve используют один и тот же
-    CLEARCOTE_CACHE_DIR=/root/.clearcote \
+    CLEARCOTE_CACHE_DIR=/root/.cache/clearcote \
     XDG_CACHE_HOME=/root/.cache
 
 WORKDIR /app
@@ -24,14 +23,11 @@ RUN echo "deb http://deb.debian.org/debian trixie contrib" >> /etc/apt/sources.l
     libgl1-mesa-dri libegl-mesa0 xvfb x11-utils xdotool mesa-utils libglx-mesa0 libgl1 libegl1 libglvnd0 \
     ttf-mscorefonts-installer git privoxy socat && \
     uv venv --python 3.14 && uv pip install pip && \
-    # playwright — только для install-deps, потом сносим
     pip install --no-cache-dir playwright httpx clearcote && \
     playwright install-deps chromium 2>/dev/null || true && \
     pip uninstall -y playwright && \
-    # Скачиваем clearcote бинарник в CLEARCOTE_CACHE_DIR
     python -c "import clearcote; clearcote.download()" && \
-    # Удаляем chromedriver без привязки к версии
-    find "${CLEARCOTE_CACHE_DIR}" -name "chromedriver" -delete 2>/dev/null || true && \
+    find /root/.cache -name "chromedriver" -delete 2>/dev/null || true && \
     fc-cache -f && \
     rm -rf /var/lib/apt/lists/*
 
@@ -44,7 +40,6 @@ EOF
 
 COPY --chmod=755 <<-"EOF" /app/start.sh
 #!/bin/bash
-set -euo pipefail
 
 cat /app/resolv.conf > /etc/resolv.conf 2>/dev/null || true
 touch /.dockerenv 2>/dev/null || true
@@ -52,19 +47,24 @@ export DISPLAY=:99
 
 Xvfb :99 -screen 0 1920x1080x24 -nolisten tcp &
 
-for i in $(seq 1 40); do
-    xdpyinfo -display :99 >/dev/null 2>&1 && { echo "Xvfb ready (attempt $i)"; break; }
+# Блок проверки Xvfb через стандартное условие 'if' (не ломает выполнение скрипта)
+for i in $(seq 1 30); do
+    if xdpyinfo -display :99 >/dev/null 2>&1; then
+        echo "Xvfb готов (попытка $i)"
+        break
+    fi
     sleep 0.5
 done
 
 if ! xdpyinfo -display :99 >/dev/null 2>&1; then
-    echo "Xvfb failed to start" >&2
+    echo "Xvfb не поднялся!" >&2
     exit 1
 fi
 
 fc-cache -f 2>/dev/null || true
 
-echo "Starting Clearcote CDP server on port ${PORT}..."
+PORT="${PORT:-9222}"
+echo "Запуск Clearcote CDP сервера на порту ${PORT}..."
 exec /app/.venv/bin/python -u /app/server.py
 EOF
 

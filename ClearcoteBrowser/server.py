@@ -1,116 +1,136 @@
 #!/usr/bin/env python3
-"""
-Clearcote CDP server
-  1. Запускает clearcote-serve на 127.0.0.1:INTERNAL_PORT
-  2. Ждёт готовности CDP (/json/version → 200)
-  3. Поднимает socat-бридж 0.0.0.0:PORT → 127.0.0.1:INTERNAL_PORT
-  4. Мониторит оба процесса
-"""
-import os, sys, time, signal, subprocess
+import glob
+import os
+import shutil
+import signal
+import subprocess
+import sys
+import time
 import httpx
 
-PORT          = int(os.environ.get("PORT", 9222))
-INTERNAL_PORT = PORT + 1                           # 9223 по умолчанию
-FINGERPRINT   = os.environ.get("FINGERPRINT", "seed-123")
-PLATFORM      = os.environ.get("PLATFORM", "linux")
-CDP_INTERNAL  = f"http://127.0.0.1:{INTERNAL_PORT}"
-
-procs: list[subprocess.Popen] = []
+PORT = int(os.environ.get("PORT", 9222))
+INTERNAL_PORT = PORT + 1  # 9223
+FINGERPRINT = os.environ.get("FINGERPRINT", "seed-123")
+PLATFORM = os.environ.get("PLATFORM", "linux")
 
 
-def cleanup(*_):
+def find_chrome_binary() -> str:
+    search_dirs = [
+        os.environ.get("CLEARCOTE_CACHE_DIR", ""),
+        os.environ.get("XDG_CACHE_HOME", ""),
+        "/root/.cache",
+        "/root/.clearcote",
+        "/app/cache",
+        os.path.expanduser("~/.cache"),
+    ]
+    for d in search_dirs:
+        if not d or not os.path.exists(d):
+            continue
+        for root, _, files in os.walk(d):
+            if "chrome" in files:
+                full_path = os.path.join(root, "chrome")
+                if os.access(full_path, os.X_OK):
+                    return full_path
+    raise FileNotFoundError("Бинарник chrome от Clearcote не найден в кэше!")
+
+
+def cleanup(procs):
+    print("[clearcote] Завершение процессов...", flush=True)
     for p in procs:
         try:
             p.terminate()
+            p.wait(timeout=2)
         except Exception:
             pass
     sys.exit(0)
 
 
-signal.signal(signal.SIGTERM, cleanup)
-signal.signal(signal.SIGINT, cleanup)
+def main():
+    print("[clearcote] Поиск скомпилированного бинарника chrome...", flush=True)
+    chrome_bin = find_chrome_binary()
+    print(f"[clearcote] Найден chrome: {chrome_bin}", flush=True)
 
-# ── 1. Запускаем clearcote-serve на loopback ──────────────────────────────────
-print(
-    f"[clearcote] launching on 127.0.0.1:{INTERNAL_PORT}  "
-    f"fingerprint={FINGERPRINT!r}  platform={PLATFORM!r}",
-    flush=True,
-)
-srv = subprocess.Popen(
-    [
-        "clearcote-serve",
-        "--port", str(INTERNAL_PORT),
-        "--fingerprint", FINGERPRINT,
-        "--platform", PLATFORM,
-    ],
-    stdout=sys.stdout,
-    stderr=sys.stderr,
-)
-procs.append(srv)
+    # Чистим грязные локи профиля
+    profile_dir = "/tmp/clearcote_profile"
+    shutil.rmtree(profile_dir, ignore_errors=True)
+    os.makedirs(profile_dir, exist_ok=True)
 
-# ── 2. Ждём готовности CDP (до 120 с) ────────────────────────────────────────
-print(f"[clearcote] waiting for CDP at {CDP_INTERNAL} …", flush=True)
-deadline = time.monotonic() + 120
-ready = False
+    cmd = [
+        chrome_bin,
+        f"--remote-debugging-port={INTERNAL_PORT}",
+        "--remote-debugging-address=127.0.0.1",
+        "--remote-allow-origins=*",
+        f"--fingerprint={FINGERPRINT}",
+        f"--fingerprint-platform={PLATFORM}",
+        "--no-sandbox",
+        "--disable-setuid-sandbox",
+        "--disable-dev-shm-usage",
+        "--disable-gpu",
+        "--no-first-run",
+        "--no-default-browser-check",
+        f"--user-data-dir={profile_dir}",
+    ]
 
-while time.monotonic() < deadline:
-    if srv.poll() is not None:
-        print(f"[clearcote] process exited early (rc={srv.returncode})", flush=True)
-        sys.exit(1)
-    try:
-        r = httpx.get(f"{CDP_INTERNAL}/json/version", timeout=3)
-        if r.status_code == 200:
-            print(f"[clearcote] CDP ready — {r.json().get('Browser', '?')}", flush=True)
-            ready = True
-            break
-    except Exception:
-        pass
-    time.sleep(1)
+    print(f"[clearcote] Запуск Chrome на 127.0.0.1:{INTERNAL_PORT}...", flush=True)
+    chrome_proc = subprocess.Popen(cmd, stdout=sys.stdout, stderr=sys.stderr)
+    procs = [chrome_proc]
 
-if not ready:
-    print("[clearcote] timeout: CDP never became healthy within 120 s", flush=True)
-    cleanup()
+    signal.signal(signal.SIGTERM, lambda *_: cleanup(procs))
+    signal.signal(signal.SIGINT, lambda *_: cleanup(procs))
 
-# ── 3. socat: 0.0.0.0:PORT → 127.0.0.1:INTERNAL_PORT ────────────────────────
-# Запускаем ПОСЛЕ того, как backend готов — нет риска ECONNREFUSED на клиенте.
-print(
-    f"[clearcote] socat bridge  0.0.0.0:{PORT} → 127.0.0.1:{INTERNAL_PORT}",
-    flush=True,
-)
-bridge = subprocess.Popen(
-    [
+    cdp_url = f"http://127.0.0.1:{INTERNAL_PORT}"
+    print(f"[clearcote] Ожидание ответа CDP по адресу {cdp_url}...", flush=True)
+    ready = False
+    deadline = time.monotonic() + 60
+
+    while time.monotonic() < deadline:
+        if chrome_proc.poll() is not None:
+            print(f"[clearcote] Chrome завершился раньше времени с кодом {chrome_proc.returncode}", flush=True)
+            sys.exit(1)
+        try:
+            r = httpx.get(f"{cdp_url}/json/version", timeout=2)
+            if r.status_code == 200:
+                ready = True
+                print(f"[clearcote] CDP готов! Имя: {r.json().get('Browser')}", flush=True)
+                break
+        except Exception:
+            pass
+        time.sleep(1)
+
+    if not ready:
+        print("[clearcote] CDP не ответил за 60 секунд!", flush=True)
+        cleanup(procs)
+
+    print(f"[clearcote] Подъем socat 0.0.0.0:{PORT} -> 127.0.0.1:{INTERNAL_PORT}...", flush=True)
+    socat_proc = subprocess.Popen([
         "socat",
         f"TCP-LISTEN:{PORT},reuseaddr,fork,bind=0.0.0.0",
         f"TCP:127.0.0.1:{INTERNAL_PORT}",
-    ],
-)
-procs.append(bridge)
+    ])
+    procs.append(socat_proc)
 
-print(
-    f"\n{'='*55}\n"
-    f"  Clearcote CDP  →  http://localhost:{PORT}\n"
-    f"  Connect:  p.chromium.connect_over_cdp('http://localhost:{PORT}')\n"
-    f"{'='*55}\n",
-    flush=True,
-)
+    print(
+        f"\n==================================================\n"
+        f"Clearcote CDP доступен по адресу http://0.0.0.0:{PORT}\n"
+        f"==================================================\n",
+        flush=True,
+    )
 
-# ── 4. Watchdog loop ──────────────────────────────────────────────────────────
-while True:
-    if srv.poll() is not None:
-        print(f"[clearcote] server exited (rc={srv.returncode}), shutting down", flush=True)
-        cleanup()
-
-    # socat с fork самосброситься не должен, но на случай краша — рестарт
-    if bridge.poll() is not None:
-        print("[clearcote] socat bridge died, restarting …", flush=True)
-        procs.remove(bridge)
-        bridge = subprocess.Popen(
-            [
+    while True:
+        if chrome_proc.poll() is not None:
+            print(f"[clearcote] Chrome завершился (код {chrome_proc.returncode}), выходим...", flush=True)
+            cleanup(procs)
+        if socat_proc.poll() is not None:
+            print("[clearcote] socat упал, перезапуск...", flush=True)
+            procs.remove(socat_proc)
+            socat_proc = subprocess.Popen([
                 "socat",
                 f"TCP-LISTEN:{PORT},reuseaddr,fork,bind=0.0.0.0",
                 f"TCP:127.0.0.1:{INTERNAL_PORT}",
-            ],
-        )
-        procs.append(bridge)
+            ])
+            procs.append(socat_proc)
+        time.sleep(2)
 
-    time.sleep(5)
+
+if __name__ == "__main__":
+    main()
