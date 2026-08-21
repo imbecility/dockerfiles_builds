@@ -289,15 +289,6 @@ jobs:
                 --http-probe-ports "$SERVICE_PORT"
             fi
 
-      - name: Debug container logs on failure
-        if: failure()
-        run: |
-          echo "=== Все контейнеры ==="
-          docker ps -a
-          echo "=== Логи последнего контейнера от clearcotebrowser:orig ==="
-          CID=$(docker ps -a --filter "ancestor=clearcotebrowser:orig" --format "{{.ID}}" | head -1)
-          if [ -n "$CID" ]; then docker logs "$CID"; fi
-
       # 5. ВЕРИФИКАЦИЯ: Запуск оптимизированного контейнера БЕЗ SlimToolkit и прогон полного test.py
       - name: Verify Minified Image (Pure Docker Run)
         run: |
@@ -312,7 +303,11 @@ jobs:
             | python3 -c "import sys, json; d = json.load(sys.stdin); print(list(d.keys())[0].split('/')[0])")
 
           echo "Запуск сжатого контейнера для финального тестирования..."
-          CONTAINER_ID=$(docker run -d -p "$SERVICE_PORT:$SERVICE_PORT" ${{ steps.names.outputs.tag }})
+          EXTRA_RUN_FLAGS=""
+          if [ "${{ matrix.service }}" == "ClearcoteBrowser" ]; then
+            EXTRA_RUN_FLAGS="--cap-add=SYS_PTRACE --security-opt seccomp=unconfined --security-opt apparmor=unconfined"
+          fi
+          CONTAINER_ID=$(docker run -d $EXTRA_RUN_FLAGS -p "$SERVICE_PORT:$SERVICE_PORT" ${{ steps.names.outputs.tag }})
 
           # Функция очистки контейнера при завершении шага
           cleanup() {
