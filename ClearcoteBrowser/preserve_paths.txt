@@ -6,19 +6,8 @@
 # повлияло на итоговый краш — значит, дело не в файлах. Не раздуваем
 # образ ими без нужды.
 
-# Python виртуальное окружение (Clearcote SDK, C-extensions, шаблоны профилей)
-/app/.venv
-
-# Директории кеша и профилей Clearcote / Chromium
-/root/.cache
+/usr/bin/strace
+/root/.cache/clearcote
 /root/.clearcote
-/root/.config
+/root/.clearcote/profiles
 /root/.clearcote/profiles/imported
-
-# Системные библиотеки, Mesa DRI драйверы для Xvfb рендеринга
-/usr/lib/x86_64-linux-gnu
-
-# Шрифтовая система, необходимая Clearcote для генерации/эмуляции отпечатков
-/usr/share/fonts
-/etc/fonts
-/var/cache/fontconfig
