@@ -1,47 +1,55 @@
+#!/usr/bin/env python3
+import os
 import sys
-from pathlib import Path
-from urllib.parse import quote
 
-ROOT_DIR = Path(__file__).resolve().parents[1]
-if str(ROOT_DIR) not in sys.path:
-    sys.path.insert(0, str(ROOT_DIR))
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "shared"))
+from utils import wait_for_cdp_server, run_main  # noqa: E402
 
-from playwright.sync_api import BrowserContext, sync_playwright
-
-from shared import run_chromium_smoke_suite, run_main, wait_for_cdp_server
-
-CDP_URL = "http://localhost:9222"
+CDP_URL = os.environ.get("CDP_URL", "http://localhost:9222")
 
 
-def run_yandex_search_scenario(context: BrowserContext, query: str) -> None:
-    page = context.new_page()
-    try:
-        page.goto(
-            f'https://yandex.com/search?text={quote(query.replace(" ", "+"), safe="+")}&lr=84',
-            wait_until="domcontentloaded",
-            timeout=90000,
-        )
-        print(f'итоговый URL: "{page.url}"')
-        page.screenshot(path="clearcote_screen.jpeg", full_page=True, type="jpeg", quality=50)
-    finally:
-        page.close()
+def main() -> None:
+    # ── 1. Ждём сервера (timeout увеличен: clearcote стартует дольше 40 с) ──
+    wait_for_cdp_server(CDP_URL, timeout=120)
 
-
-def main(query: str = "bufo bufo care") -> None:
-    wait_for_cdp_server(CDP_URL, timeout=40)
+    from playwright.sync_api import sync_playwright
 
     with sync_playwright() as p:
         browser = p.chromium.connect_over_cdp(CDP_URL)
-        context = browser.contexts[0] if browser.contexts else browser.new_context()
+        ctx = browser.new_context()
 
-        context.set_default_timeout(15000)
-        run_chromium_smoke_suite(context, expected_extensions_count=0)
+        # ── 2. Создаём страницу — ОБЯЗАТЕЛЬНО для slim probe ────────────────
+        # SlimToolkit трекает открытые файлы. Без new_page() renderer не
+        # запускается → fontconfig/Skia/GL не трекаются → slim их удаляет →
+        # SIGABRT при runtime. Этот вызов — ключ к рабочему slim-образу.
+        page = ctx.new_page()
 
-        context.set_default_timeout(60000)
-        run_yandex_search_scenario(context, query)
+        # ── 3. Навигация (упражняем font rendering) ──────────────────────────
+        print("[test] navigating to example.com …", flush=True)
+        page.goto("https://example.com", timeout=30_000)
 
-        context.close()
+        title = page.title()
+        print(f"[test] title = {title!r}", flush=True)
+        assert "Example" in title, f"unexpected title: {title!r}"
+
+        # ── 4. Stealth check ─────────────────────────────────────────────────
+        wd = page.evaluate("navigator.webdriver")
+        print(f"[test] navigator.webdriver = {wd}", flush=True)
+        assert not wd, (
+            f"navigator.webdriver={wd!r}: stealth broken, "
+            "chrome was likely started with --enable-automation"
+        )
+
+        # ── 5. UA check ──────────────────────────────────────────────────────
+        ua = page.evaluate("navigator.userAgent")
+        print(f"[test] userAgent = {ua!r}", flush=True)
+        assert "HeadlessChrome" not in ua, f"headless UA leaked: {ua!r}"
+
+        page.close()
+        ctx.close()
         browser.close()
+
+    print("[test] ✓ all checks passed", flush=True)
 
 
 if __name__ == "__main__":
