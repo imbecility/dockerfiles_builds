@@ -36,6 +36,10 @@ COPY --chmod=755 <<-"EOF" /app/start.sh
 #!/bin/bash
 cat /app/resolv.conf > /etc/resolv.conf 2>/dev/null || true
 touch /.dockerenv 2>/dev/null || true
+
+# Удаляем любые кэши и локи, запекшиеся в образ при анализе SlimToolkit
+rm -rf /tmp/.X* /tmp/cc_profile_* 2>/dev/null || true
+
 export DISPLAY=:99
 
 Xvfb :99 -screen 0 1920x1080x24 -nolisten tcp &

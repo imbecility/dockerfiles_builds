@@ -2,6 +2,7 @@ import os
 import signal
 import subprocess
 import sys
+import tempfile
 from pathlib import Path
 
 # Поиск бинарника в фиксированной директории
@@ -22,6 +23,10 @@ internal = int(os.getenv("CC_INTERNAL_PORT", "9223"))
 fingerprint = os.getenv("CC_FINGERPRINT", "clearcote-seed-123")
 platform = os.getenv("CC_PLATFORM", "windows")
 brand = os.getenv("CC_BRAND", "Chrome")
+
+# Уникальная временная папка для профиля при каждом запуске
+# (Защита от запекания мертвых lock-файлов в SlimToolkit)
+profile_dir = tempfile.mkdtemp(prefix="cc_profile_")
 
 # TCP-прокси для DevTools: 0.0.0.0:$port -> 127.0.0.1:$internal
 socat_proc = subprocess.Popen(
@@ -45,7 +50,7 @@ cmd = [
     f"--fingerprint={fingerprint}",
     f"--fingerprint-platform={platform}",
     f"--fingerprint-brand={brand}",
-    "--user-data-dir=/tmp/clearcote_profile",
+    f"--user-data-dir={profile_dir}",
     "about:blank",
 ]
 
