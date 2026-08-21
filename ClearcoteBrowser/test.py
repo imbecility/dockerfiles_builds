@@ -13,28 +13,28 @@ CDP_URL = "http://localhost:9222"
 
 
 def main() -> None:
-    print(f"Ожидание запуска Clearcote CDP на {CDP_URL}...")
+    print(f"Ожидание запуска Clearcote CDP на {CDP_URL}...", flush=True)
     wait_for_cdp_server(CDP_URL, timeout=40)
 
     with sync_playwright() as p:
-        print("Подключение к Clearcote через CDP...")
+        print("Подключение к Clearcote через CDP...", flush=True)
         browser = p.chromium.connect_over_cdp(CDP_URL)
         context = browser.contexts[0] if browser.contexts else browser.new_context()
         context.set_default_timeout(15000)
 
         page = context.new_page()
         try:
-            print("Переход на ya.ru для проверки рендеринга...")
+            print("Переход на ya.ru для проверки рендеринга...", flush=True)
             page.goto("https://ya.ru", wait_until="domcontentloaded", timeout=30000)
             title = page.title()
-            print(f'Успешно! Заголовок страницы: "{title}"')
+            print(f'Успешно! Заголовок страницы: "{title}"', flush=True)
             assert title, "Заголовок страницы не должен быть пустым"
         finally:
             page.close()
 
         context.close()
         browser.close()
-        print("=== Базовый тест Clearcote успешно пройден ===")
+        print("=== Базовый тест Clearcote успешно пройден ===", flush=True)
 
 
 if __name__ == "__main__":
