@@ -8,4 +8,4 @@
 
 /root/.cache/clearcote
 /root/.clearcote
-/app/.venv
+/usr/local/bin/clearcote-browser
