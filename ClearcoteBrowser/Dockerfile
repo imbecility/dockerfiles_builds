@@ -21,7 +21,7 @@ RUN echo "deb http://deb.debian.org/debian trixie contrib" >> /etc/apt/sources.l
     pip install --no-cache-dir playwright && playwright install-deps chromium 2>/dev/null || true && pip uninstall -y playwright && \
     pip install --no-cache-dir clearcote httpx && \
     python -c "import clearcote; clearcote.download()" && \
-    rm -rf /var/lib/apt/lists/* /root/.cache/*
+    fc-cache -f && rm -rf /var/lib/apt/lists/*
 
 COPY <<-"EOF" /app/resolv.conf
 nameserver 1.1.1.1
@@ -32,8 +32,8 @@ EOF
 
 COPY --chmod=755 <<-"EOF" /app/start.sh
 #!/bin/bash
-cat /app/resolv.conf > /etc/resolv.conf
-touch /.dockerenv
+cat /app/resolv.conf > /etc/resolv.conf 2>/dev/null || true
+touch /.dockerenv 2>/dev/null || true
 export DISPLAY=:99
 
 Xvfb :99 -screen 0 1920x1080x24 -nolisten tcp &
