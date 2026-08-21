@@ -7,7 +7,6 @@ import tempfile
 
 
 def get_chrome_executable() -> str:
-    # 1. Попытка через SDK clearcote
     try:
         import clearcote
 
@@ -22,7 +21,6 @@ def get_chrome_executable() -> str:
     except ImportError:
         pass
 
-    # 2. Поиск по известным путям кэша в образе
     search_patterns = [
         "/root/.clearcote/**/chrome",
         "/root/.cache/clearcote/**/chrome",
@@ -38,7 +36,7 @@ def get_chrome_executable() -> str:
 
 if __name__ == "__main__":
     port = int(os.getenv("PORT", "9222"))
-    internal_port = port + 1  # 9223
+    internal_port = port + 1
 
     fingerprint = os.getenv("CC_FINGERPRINT", "clearcote-seed")
     platform = os.getenv("CC_PLATFORM", "windows")
@@ -46,7 +44,6 @@ if __name__ == "__main__":
     chrome_path = get_chrome_executable()
     print(f"Используется бинарник Chrome: {chrome_path}")
 
-    # socat слушает 0.0.0.0:PORT и транслирует в 127.0.0.1:INTERNAL_PORT
     socat_cmd = [
         "socat",
         f"TCP-LISTEN:{port},fork,reuseaddr",
@@ -64,6 +61,7 @@ if __name__ == "__main__":
         f"--fingerprint-platform={platform}",
         f"--user-data-dir={user_data_dir}",
         "--no-sandbox",
+        "--no-zygote",
         "--disable-setuid-sandbox",
         "--disable-dev-shm-usage",
         "--disable-gpu",

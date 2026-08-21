@@ -5,3 +5,4 @@
 /usr/share/fonts
 /usr/share/fontconfig
 /usr/bin/socat
+/usr/lib/x86_64-linux-gnu/gconv
