@@ -1,1 +1,7 @@
 /app/cache/clearcote
+/usr/share/fonts
+/usr/share/fontconfig
+/etc/fonts
+/var/cache/fontconfig
+/usr/lib/x86_64-linux-gnu/gconv
+/usr/bin/socat
