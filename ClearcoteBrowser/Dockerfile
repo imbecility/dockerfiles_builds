@@ -19,7 +19,7 @@ RUN echo "deb http://deb.debian.org/debian trixie contrib" >> /etc/apt/sources.l
     ttf-mscorefonts-installer git privoxy socat && \
     uv venv --python 3.14 && uv pip install pip && \
     pip install --no-cache-dir playwright httpx clearcote && playwright install-deps chromium 2>/dev/null || true && pip uninstall -y playwright && \
-    fc-cache -f && rm -rf /var/lib/apt/lists/* \
+    fc-cache -f && rm -rf /var/lib/apt/lists/* && \
     python -c "import clearcote; clearcote.download()" && \
     find /root/.cache/clearcote/v0.1.0-pre.22/browser/chrome -name "chromedriver" -delete || true
 
