@@ -1,1 +1,6 @@
+/root/.clearcote
 /root/.cache/clearcote
+/etc/fonts
+/var/cache/fontconfig
+/usr/share/fonts
+/usr/share/fontconfig
