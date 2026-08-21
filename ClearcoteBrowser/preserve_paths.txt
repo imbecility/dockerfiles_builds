@@ -6,8 +6,6 @@
 # повлияло на итоговый краш — значит, дело не в файлах. Не раздуваем
 # образ ими без нужды.
 
-/usr/bin/strace
 /root/.cache/clearcote
 /root/.clearcote
-/root/.clearcote/profiles
-/root/.clearcote/profiles/imported
+/app/.venv

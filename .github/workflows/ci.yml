@@ -262,7 +262,7 @@ jobs:
                 path=$(echo "$p" | xargs)
                 case "$path" in ''|'#'*) continue ;; esac
                 if docker run --rm "${{ steps.names.outputs.service_lower }}:orig" test -e "$path"; then
-                  SLIM_EXTRA_FLAGS="$SLIM_EXTRA_FLAGS --preserve-path $path"
+                  SLIM_EXTRA_FLAGS="$SLIM_EXTRA_FLAGS --preserve-path $path --include-path $path"
                 fi
               done < "$PRESERVE_FILE"
             fi
