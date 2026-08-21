@@ -7,3 +7,6 @@
 # образ ими без нужды.
 
 /root/.cache/clearcote
+/root/.clearcote
+/root/.clearcote/profiles
+/root/.clearcote/profiles/imported
