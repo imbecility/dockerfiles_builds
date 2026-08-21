@@ -71,5 +71,6 @@ else
     exec /app/.venv/bin/python -u /app/server.py
 fi
 EOF
+
 EXPOSE ${PORT}
 CMD ["/bin/bash", "/app/start.sh"]
