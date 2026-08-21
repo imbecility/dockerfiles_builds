@@ -45,8 +45,8 @@ for env_key, opt_key in _ENV_TO_OPT.items():
     if val:
         opts[opt_key] = val
 
-_wv = os.environ.get("CC_WIDEVINE")
-_wv_on = (_wv not in ("0", "false", "no")) if _wv else (opts.get("platform") == "windows")
+_wv = os.environ.get("CC_WIDEVINE", "0")
+_wv_on = _wv in ("1", "true", "yes")
 if _wv_on:
     os.environ.setdefault(
         "CLEARCOTE_WIDEVINE_DIR",

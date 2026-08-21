@@ -17,27 +17,24 @@ def main() -> None:
     wait_for_cdp_server(CDP_URL, timeout=40)
 
     with sync_playwright() as p:
-        print("Подключение к Clearcote через CDP...", flush=True)
+        print("Подключение к Clearcote через CDP (Probe)...", flush=True)
         browser = p.chromium.connect_over_cdp(CDP_URL)
         context = browser.contexts[0] if browser.contexts else browser.new_context()
         context.set_default_timeout(15000)
 
-        # Проверка ключевых возможностей
+        # Прогрев возможностей браузера для регистрации SlimToolkit всех динамических библиотек
         run_common_capabilities(context)
 
-        page = context.new_page()
         try:
-            print("Переход на ya.ru для проверки рендеринга...", flush=True)
+            page = context.new_page()
             page.goto("https://ya.ru", wait_until="domcontentloaded", timeout=30000)
-            title = page.title()
-            print(f'Успешно! Заголовок страницы: "{title}"', flush=True)
-            assert title, "Заголовок страницы не должен быть пустым"
-        finally:
+            print(f'Probe URL: "{page.url}", Title: "{page.title()}"', flush=True)
             page.close()
+        except Exception as e:
+            print(f"[WARN] Probe navigation warning: {e}", flush=True)
 
         context.close()
         browser.close()
-        print("=== Базовый тест Clearcote успешно пройден ===", flush=True)
 
 
 if __name__ == "__main__":
