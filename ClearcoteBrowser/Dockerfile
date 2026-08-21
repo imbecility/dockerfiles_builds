@@ -2,6 +2,7 @@ FROM debian:stable-slim
 COPY --from=ghcr.io/astral-sh/uv:latest /uv /uvx /bin/
 ENV PATH="/app/.venv/bin:$PATH" \
     PORT=9222
+
 WORKDIR /app
 COPY server.py /app/server.py
 

@@ -302,17 +302,20 @@ jobs:
             --format '{{json .Config.ExposedPorts}}' \
             | python3 -c "import sys, json; d = json.load(sys.stdin); print(list(d.keys())[0].split('/')[0])")
 
-          echo "Запуск сжатого контейнера для финального тестирования..."
           EXTRA_RUN_FLAGS=""
           if [ "${{ matrix.service }}" == "ClearcoteBrowser" ]; then
-            EXTRA_RUN_FLAGS="--cap-add=SYS_PTRACE --security-opt seccomp=unconfined --security-opt apparmor=unconfined"
+            EXTRA_RUN_FLAGS="--cap-add=SYS_PTRACE --security-opt seccomp=unconfined --security-opt apparmor=unconfined --shm-size=1g"
           fi
+
+          echo "Запуск сжатого контейнера для финального тестирования..."
           CONTAINER_ID=$(docker run -d $EXTRA_RUN_FLAGS -p "$SERVICE_PORT:$SERVICE_PORT" ${{ steps.names.outputs.tag }})
 
-          # Функция очистки контейнера при завершении шага
           cleanup() {
             echo "Остановка проверочного контейнера..."
-            docker logs "$CONTAINER_ID" --tail 50 || true
+            echo "=== EXIT/OOM STATUS ==="
+            docker inspect "$CONTAINER_ID" --format='ExitCode={{.State.ExitCode}} OOMKilled={{.State.OOMKilled}} Error={{.State.Error}} FinishedAt={{.State.FinishedAt}}' || true
+            echo "=== ПОЛНЫЕ ЛОГИ КОНТЕЙНЕРА (без обрезки по --tail) ==="
+            docker logs "$CONTAINER_ID" || true
             docker rm -f "$CONTAINER_ID" || true
           }
           trap cleanup EXIT
