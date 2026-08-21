@@ -20,7 +20,6 @@ def main() -> None:
         context = browser.contexts[0] if browser.contexts else browser.new_context()
         context.set_default_timeout(15000)
 
-        # Полный интеграционный прогон: вынуждает SlimToolkit сохранить нужные системные либы
         run_chromium_smoke_suite(context, expected_extensions_count=0)
 
         page = context.new_page()

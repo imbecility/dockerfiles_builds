@@ -2,7 +2,8 @@ FROM debian:stable-slim
 
 COPY --from=ghcr.io/astral-sh/uv:latest /uv /uvx /bin/
 ENV PATH="/app/.venv/bin:$PATH" \
-    PORT=9222
+    PORT=9222 \
+    XDG_CACHE_HOME=/app/cache
 
 WORKDIR /app
 COPY server.py /app/server.py
@@ -36,7 +37,7 @@ cat /app/resolv.conf > /etc/resolv.conf 2>/dev/null || true
 touch /.dockerenv 2>/dev/null || true
 export DISPLAY=:99
 
-# ГЛАВНЫЙ ФИКС: Удаляем ВСЕ мертвые кэши, конфиги и локи, которые запеклись во время работы SlimToolkit
+# Зачищаем мусор, оставшийся от работы SlimToolkit
 rm -rf /tmp/* /tmp/.* 2>/dev/null || true
 
 Xvfb :99 -screen 0 1920x1080x24 -nolisten tcp &
