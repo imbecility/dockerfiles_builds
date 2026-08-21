@@ -37,8 +37,7 @@ cat /app/resolv.conf > /etc/resolv.conf 2>/dev/null || true
 touch /.dockerenv 2>/dev/null || true
 export DISPLAY=:99
 
-# Очищаем временные файлы и локи, оставшиеся после анализа SlimToolkit
-rm -rf /tmp/* /tmp/.* 2>/dev/null || true
+
 
 Xvfb :99 -screen 0 1920x1080x24 -nolisten tcp &
 for i in $(seq 1 20); do
