@@ -262,7 +262,7 @@ jobs:
                 path=$(echo "$p" | xargs)
                 case "$path" in ''|'#'*) continue ;; esac
                 if docker run --rm "${{ steps.names.outputs.service_lower }}:orig" test -e "$path"; then
-                  SLIM_EXTRA_FLAGS="$SLIM_EXTRA_FLAGS --preserve-path $path --include-path $path"
+                  SLIM_EXTRA_FLAGS="$SLIM_EXTRA_FLAGS --preserve-path $path"
                 fi
               done < "$PRESERVE_FILE"
             fi
@@ -304,7 +304,7 @@ jobs:
 
           EXTRA_RUN_FLAGS=""
           if [ "${{ matrix.service }}" == "ClearcoteBrowser" ]; then
-            EXTRA_RUN_FLAGS="--cap-add=SYS_PTRACE --security-opt seccomp=unconfined --security-opt apparmor=unconfined --shm-size=1g"
+            EXTRA_RUN_FLAGS="--cap-add=SYS_PTRACE --cap-add=SYS_NICE --cap-add=SYS_ADMIN --security-opt seccomp=unconfined --security-opt apparmor=unconfined --shm-size=1g"
           fi
 
           echo "Запуск сжатого контейнера для финального тестирования..."
