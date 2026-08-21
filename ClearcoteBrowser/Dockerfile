@@ -30,9 +30,8 @@ RUN echo "deb http://deb.debian.org/debian trixie contrib" >> /etc/apt/sources.l
     python -c "import clearcote; clearcote.download()" && \
     find /root/.cache -name "chromedriver" -delete 2>/dev/null || true && \
     fc-cache -f -v && \
-    # Полное резервное копирование динамических библиотек, шрифтов и конфигов в /app
-    mkdir -p /app/lib_backup/x86_64-linux-gnu /app/etc_fonts /app/share_fonts /app/gconv && \
-    cp -a /usr/lib/x86_64-linux-gnu/* /app/lib_backup/x86_64-linux-gnu/ 2>/dev/null || true && \
+    # Резервное копирование шрифтов, конфигов fontconfig и gconv в /app
+    mkdir -p /app/etc_fonts /app/share_fonts /app/gconv && \
     cp -a /etc/fonts/* /app/etc_fonts/ 2>/dev/null || true && \
     cp -a /usr/share/fonts/* /app/share_fonts/ 2>/dev/null || true && \
     cp -a /usr/lib/x86_64-linux-gnu/gconv/* /app/gconv/ 2>/dev/null || true && \
@@ -52,32 +51,11 @@ cat /app/resolv.conf > /etc/resolv.conf 2>/dev/null || true
 touch /.dockerenv 2>/dev/null || true
 export DISPLAY=:99
 
-# 1. Восстановление системных библиотек из бэкапа в /app
-if [ -d /app/lib_backup/x86_64-linux-gnu ]; then
-    echo "[start.sh] Восстановление динамических библиотек в /usr/lib/x86_64-linux-gnu..."
-    mkdir -p /usr/lib/x86_64-linux-gnu
-    cp -rn /app/lib_backup/x86_64-linux-gnu/* /usr/lib/x86_64-linux-gnu/ 2>/dev/null || true
-    ldconfig 2>/dev/null || true
-fi
-
-# 2. Восстановление fontconfig и шрифтов
-if [ ! -f /etc/fonts/fonts.conf ] && [ -d /app/etc_fonts ]; then
-    echo "[start.sh] Восстановление /etc/fonts..."
-    mkdir -p /etc/fonts
-    cp -a /app/etc_fonts/* /etc/fonts/ 2>/dev/null || true
-fi
-
-if [ ! -d /usr/share/fonts/truetype ] && [ -d /app/share_fonts ]; then
-    echo "[start.sh] Восстановление /usr/share/fonts..."
-    mkdir -p /usr/share/fonts
-    cp -a /app/share_fonts/* /usr/share/fonts/ 2>/dev/null || true
-fi
-
-if [ ! -d /usr/lib/x86_64-linux-gnu/gconv ] && [ -d /app/gconv ]; then
-    echo "[start.sh] Восстановление gconv..."
-    mkdir -p /usr/lib/x86_64-linux-gnu/gconv
-    cp -a /app/gconv/* /usr/lib/x86_64-linux-gnu/gconv/ 2>/dev/null || true
-fi
+# Безусловное восстановление недостающих файлов шрифтов и конфигов (cp -rn не перезаписывает существующие)
+mkdir -p /etc/fonts /usr/share/fonts /usr/lib/x86_64-linux-gnu/gconv
+cp -rn /app/etc_fonts/* /etc/fonts/ 2>/dev/null || true
+cp -rn /app/share_fonts/* /usr/share/fonts/ 2>/dev/null || true
+cp -rn /app/gconv/* /usr/lib/x86_64-linux-gnu/gconv/ 2>/dev/null || true
 
 Xvfb :99 -screen 0 1920x1080x24 -nolisten tcp &
 
