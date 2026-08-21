@@ -1,18 +1,10 @@
 FROM debian:stable-slim
-
 COPY --from=ghcr.io/astral-sh/uv:latest /uv /uvx /bin/
-
 ENV PATH="/app/.venv/bin:$PATH" \
     PORT=9222 \
-    FINGERPRINT="seed-123" \
-    PLATFORM="linux" \
-    CLEARCOTE_CACHE_DIR=/root/.cache/clearcote \
-    XDG_CACHE_HOME=/root/.cache \
-    FONTCONFIG_PATH=/etc/fonts
-
+    INTERNAL_PORT=9223
 WORKDIR /app
 COPY server.py /app/server.py
-
 RUN echo "deb http://deb.debian.org/debian trixie contrib" >> /etc/apt/sources.list.d/contrib.list && \
     echo "ttf-mscorefonts-installer msttcorefonts/accepted-mscorefonts-eula select true" | debconf-set-selections && \
     apt-get update && apt-get install -y --no-install-recommends \
@@ -24,60 +16,44 @@ RUN echo "deb http://deb.debian.org/debian trixie contrib" >> /etc/apt/sources.l
     libgl1-mesa-dri libegl-mesa0 xvfb x11-utils xdotool mesa-utils libglx-mesa0 libgl1 libegl1 libglvnd0 \
     ttf-mscorefonts-installer git privoxy socat && \
     uv venv --python 3.14 && uv pip install pip && \
-    pip install --no-cache-dir playwright httpx clearcote && \
-    playwright install-deps chromium 2>/dev/null || true && \
-    pip uninstall -y playwright && \
+    pip install --no-cache-dir playwright httpx clearcote && playwright install-deps chromium 2>/dev/null || true && pip uninstall -y playwright && \
+    fc-cache -f && rm -rf /var/lib/apt/lists/* && \
     python -c "import clearcote; clearcote.download()" && \
-    find /root/.cache -name "chromedriver" -delete 2>/dev/null || true && \
-    fc-cache -f -v && \
-    # Резервное копирование шрифтов, конфигов fontconfig и gconv в /app
-    mkdir -p /app/etc_fonts /app/share_fonts /app/gconv && \
-    cp -a /etc/fonts/* /app/etc_fonts/ 2>/dev/null || true && \
-    cp -a /usr/share/fonts/* /app/share_fonts/ 2>/dev/null || true && \
-    cp -a /usr/lib/x86_64-linux-gnu/gconv/* /app/gconv/ 2>/dev/null || true && \
-    rm -rf /var/lib/apt/lists/*
-
+    find /root/.cache/clearcote -iname "chromedriver" -delete || true
 COPY <<-"EOF" /app/resolv.conf
 nameserver 1.1.1.1
 nameserver 1.0.0.1
 nameserver 2606:4700:4700::1111
 nameserver 2606:4700:4700::1002
 EOF
-
 COPY --chmod=755 <<-"EOF" /app/start.sh
 #!/bin/bash
-
 cat /app/resolv.conf > /etc/resolv.conf 2>/dev/null || true
 touch /.dockerenv 2>/dev/null || true
 export DISPLAY=:99
-
-# Безусловное восстановление недостающих файлов шрифтов и конфигов (cp -rn не перезаписывает существующие)
-mkdir -p /etc/fonts /usr/share/fonts /usr/lib/x86_64-linux-gnu/gconv
-cp -rn /app/etc_fonts/* /etc/fonts/ 2>/dev/null || true
-cp -rn /app/share_fonts/* /usr/share/fonts/ 2>/dev/null || true
-cp -rn /app/gconv/* /usr/lib/x86_64-linux-gnu/gconv/ 2>/dev/null || true
-
 Xvfb :99 -screen 0 1920x1080x24 -nolisten tcp &
-
-for i in $(seq 1 30); do
+for i in $(seq 1 20); do
     if xdpyinfo -display :99 >/dev/null 2>&1; then
         echo "Xvfb готов (попытка $i)"
         break
     fi
     sleep 0.5
 done
-
 if ! xdpyinfo -display :99 >/dev/null 2>&1; then
-    echo "Xvfb не поднялся!" >&2
+    echo "Xvfb не поднялся за отведенное время!" >&2
     exit 1
 fi
-
 fc-cache -f 2>/dev/null || true
 
 PORT="${PORT:-9222}"
-echo "Запуск Clearcote CDP сервера на порту ${PORT}..."
+INTERNAL_PORT="${INTERNAL_PORT:-9223}"
+
+# clearcote/Chromium биндит CDP только на 127.0.0.1 — пробрасываем на
+# внешний порт, который реально опубликован наружу контейнера.
+socat TCP-LISTEN:${PORT},fork,reuseaddr TCP:127.0.0.1:${INTERNAL_PORT} &
+
+echo -e "\n==================================\nstarting clearcote cdp server...\nconnect:\nwith sync_playwright() as p:\n    browser = p.chromium.connect_over_cdp('http://localhost:${PORT}')\n==================================\n"
 exec /app/.venv/bin/python -u /app/server.py
 EOF
-
 EXPOSE ${PORT}
 CMD ["/bin/bash", "/app/start.sh"]

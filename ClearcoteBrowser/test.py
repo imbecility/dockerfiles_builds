@@ -1,40 +1,35 @@
-#!/usr/bin/env python3
-import os
 import sys
+from pathlib import Path
 
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "shared"))
-from utils import wait_for_cdp_server, run_main  # noqa: E402
+ROOT_DIR = Path(__file__).resolve().parents[1]
+if str(ROOT_DIR) not in sys.path:
+    sys.path.insert(0, str(ROOT_DIR))
 
-CDP_URL = os.environ.get("CDP_URL", "http://localhost:9222")
+from playwright.sync_api import sync_playwright
+
+from shared import run_chromium_smoke_suite, run_main, wait_for_cdp_server
+
+CDP_URL = "http://localhost:9222"
 
 
 def main() -> None:
-    print(f"Ожидание запуска Clearcote CDP на {CDP_URL}...", flush=True)
-    wait_for_cdp_server(CDP_URL, timeout=120)
-
-    from playwright.sync_api import sync_playwright
+    wait_for_cdp_server(CDP_URL, timeout=40)
 
     with sync_playwright() as p:
-        print(f"Подключение Playwright к {CDP_URL}...", flush=True)
         browser = p.chromium.connect_over_cdp(CDP_URL)
-        ctx = browser.contexts[0] if browser.contexts else browser.new_context()
+        context = browser.contexts[0] if browser.contexts else browser.new_context()
 
-        page = ctx.new_page()
-        print("Переход на https://example.com...", flush=True)
-        page.goto("https://example.com", timeout=30000)
+        context.set_default_timeout(15000)
+        run_chromium_smoke_suite(context, expected_extensions_count=0)
 
-        title = page.title()
-        print(f"Заголовок: {title!r}", flush=True)
-        assert "Example" in title, f"Неожиданный заголовок: {title!r}"
-
-        webdriver = page.evaluate("navigator.webdriver")
-        print(f"navigator.webdriver = {webdriver}", flush=True)
-        assert not webdriver, "navigator.webdriver должен быть False"
-
+        context.set_default_timeout(30000)
+        page = context.new_page()
+        page.goto("https://ya.ru", wait_until="domcontentloaded")
+        print(f'заголовок страницы: "{page.title()}"')
         page.close()
-        browser.close()
 
-    print("✓ Тест прошел успешно!", flush=True)
+        context.close()
+        browser.close()
 
 
 if __name__ == "__main__":
