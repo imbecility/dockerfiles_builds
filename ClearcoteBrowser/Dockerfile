@@ -2,7 +2,8 @@ FROM debian:stable-slim
 
 COPY --from=ghcr.io/astral-sh/uv:latest /uv /uvx /bin/
 ENV PATH="/app/.venv/bin:$PATH" \
-    PORT=9222
+    PORT=9222 \
+    CLEARCOTE_CACHE_DIR=/root/.clearcote
 
 WORKDIR /app
 COPY server.py /app/server.py
@@ -19,9 +20,10 @@ RUN echo "deb http://deb.debian.org/debian trixie contrib" >> /etc/apt/sources.l
     ttf-mscorefonts-installer git privoxy socat && \
     uv venv --python 3.14 && uv pip install pip && \
     pip install --no-cache-dir playwright httpx clearcote && playwright install-deps chromium 2>/dev/null || true && pip uninstall -y playwright && \
-    python -c "import clearcote; clearcote.download()" && \
+    mkdir -p /root/.clearcote && \
+    python -c "import clearcote; clearcote.download(cache_dir='/root/.clearcote')" && \
     find /root/.cache/clearcote/v0.1.0-pre.22/browser/chrome -name "chromedriver" -delete || true && \
-    fc-cache -f && rm -rf /var/lib/apt/lists/*
+    fc-cache -f && rm -rf /var/lib/apt/lists/* /root/.cache/*
 
 COPY <<-"EOF" /app/resolv.conf
 nameserver 1.1.1.1
@@ -52,7 +54,7 @@ fi
 
 PORT="${PORT:-9222}"
 echo -e "\n==================================\nstarting clearcote cdp server...\nconnect:\nwith sync_playwright() as p:\n    browser = p.chromium.connect_over_cdp('http://localhost:${PORT}')\n==================================\n"
-exec python /app/server.py
+exec /app/.venv/bin/python -u /app/server.py
 EOF
 
 EXPOSE ${PORT}

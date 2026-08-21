@@ -22,12 +22,12 @@ def main() -> None:
         context = browser.contexts[0] if browser.contexts else browser.new_context()
         context.set_default_timeout(15000)
 
-        # Верификация всех возможностей в сжатом образе
+        # Полный интеграционный набор тестов
         run_chromium_smoke_suite(context, expected_extensions_count=0)
 
         page = context.new_page()
         try:
-            print("Переход на ya.ru для проверки рендеринга...", flush=True)
+            print("Переход на ya.ru для проверки реального рендеринга...", flush=True)
             page.goto("https://ya.ru", wait_until="domcontentloaded", timeout=30000)
             title = page.title()
             print(f'Успешно! Заголовок страницы: "{title}"', flush=True)
@@ -37,7 +37,7 @@ def main() -> None:
 
         context.close()
         browser.close()
-        print("=== Базовый тест Clearcote успешно пройден ===", flush=True)
+        print("=== Интеграционный тест Clearcote успешно пройден ===", flush=True)
 
 
 if __name__ == "__main__":
