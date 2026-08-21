@@ -304,7 +304,7 @@ jobs:
 
           EXTRA_RUN_FLAGS=""
           if [ "${{ matrix.service }}" == "ClearcoteBrowser" ]; then
-            EXTRA_RUN_FLAGS="--cap-add=SYS_PTRACE --security-opt seccomp=unconfined --security-opt apparmor=unconfined --shm-size=1g -e DEBUG_STRACE=1"
+            EXTRA_RUN_FLAGS="--cap-add=SYS_PTRACE --security-opt seccomp=unconfined --security-opt apparmor=unconfined --shm-size=1g"
           fi
 
           echo "Запуск сжатого контейнера для финального тестирования..."
