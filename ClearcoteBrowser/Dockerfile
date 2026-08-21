@@ -16,7 +16,7 @@ RUN echo "deb http://deb.debian.org/debian trixie contrib" >> /etc/apt/sources.l
     libgtk-3-0 libpangocairo-1.0-0 libcairo-gobject2 libgdk-pixbuf-2.0-0 libxss1 libxtst6 fonts-liberation fonts-croscore \
     fonts-noto-color-emoji fonts-unifont fonts-freefont-ttf fonts-ipafont-gothic fonts-wqy-zenhei fonts-tlwg-loma-otf \
     libgl1-mesa-dri libegl-mesa0 xvfb x11-utils xdotool mesa-utils libglx-mesa0 libgl1 libegl1 libglvnd0 \
-    ttf-mscorefonts-installer git privoxy && \
+    ttf-mscorefonts-installer git privoxy socat && \
     uv venv --python 3.14 && uv pip install pip && \
     pip install --no-cache-dir playwright httpx clearcote && playwright install-deps chromium 2>/dev/null || true && pip uninstall -y playwright && \
     python -c "import clearcote; clearcote.download()" && \
