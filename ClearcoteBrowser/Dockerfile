@@ -2,8 +2,7 @@ FROM debian:stable-slim
 
 COPY --from=ghcr.io/astral-sh/uv:latest /uv /uvx /bin/
 ENV PATH="/app/.venv/bin:$PATH" \
-    PORT=9222 \
-    XDG_CACHE_HOME=/app/cache
+    PORT=9222
 
 WORKDIR /app
 COPY server.py /app/server.py
@@ -20,9 +19,10 @@ RUN echo "deb http://deb.debian.org/debian trixie contrib" >> /etc/apt/sources.l
     ttf-mscorefonts-installer git privoxy socat && \
     uv venv --python 3.14 && uv pip install pip && \
     pip install --no-cache-dir playwright httpx clearcote && playwright install-deps chromium 2>/dev/null || true && pip uninstall -y playwright && \
+    fc-cache -f && rm -rf /var/lib/apt/lists/* \
     python -c "import clearcote; clearcote.download()" && \
-    find /root/.cache/clearcote/v0.1.0-pre.22/browser/chrome -name "chromedriver" -delete || true && \
-    fc-cache -f && rm -rf /var/lib/apt/lists/* /root/.cache/*
+    find /root/.cache/clearcote/v0.1.0-pre.22/browser/chrome -name "chromedriver" -delete || true
+
 
 COPY <<-"EOF" /app/resolv.conf
 nameserver 1.1.1.1
@@ -37,9 +37,8 @@ cat /app/resolv.conf > /etc/resolv.conf 2>/dev/null || true
 touch /.dockerenv 2>/dev/null || true
 export DISPLAY=:99
 
-
-
 Xvfb :99 -screen 0 1920x1080x24 -nolisten tcp &
+
 for i in $(seq 1 20); do
     if xdpyinfo -display :99 >/dev/null 2>&1; then
         echo "Xvfb готов (попытка $i)"
@@ -47,14 +46,13 @@ for i in $(seq 1 20); do
     fi
     sleep 0.5
 done
-
+if ! xdpyinfo -display :99 >/dev/null 2>&1; then
+    echo "Xvfb не поднялся за отведенное время!" >&2
+    exit 1
+fi
+fc-cache -f
 PORT="${PORT:-9222}"
-export CC_INTERNAL_PORT=9223
-
-echo "Starting socat proxy: 0.0.0.0:${PORT} -> 127.0.0.1:${CC_INTERNAL_PORT}"
-socat TCP-LISTEN:${PORT},fork,reuseaddr,bind=0.0.0.0 TCP:127.0.0.1:${CC_INTERNAL_PORT} &
-
-echo -e "\n==================================\nstarting clearcote cdp server...\n==================================\n"
+echo -e "\n==================================\nstarting clearcote cdp server...\nconnect:\nwith sync_playwright() as p:\n    browser = p.chromium.connect_over_cdp('http://localhost:${PORT}')\n==================================\n"
 exec /app/.venv/bin/python -u /app/server.py
 EOF
 
