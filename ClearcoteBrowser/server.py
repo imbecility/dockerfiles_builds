@@ -1,5 +1,7 @@
 import os
+import signal
 import subprocess
+import sys
 from pathlib import Path
 
 from clearcote import executable_path
@@ -45,21 +47,6 @@ for env_key, opt_key in _ENV_TO_OPT.items():
     if val:
         opts[opt_key] = val
 
-_wv = os.environ.get("CC_WIDEVINE", "0")
-_wv_on = _wv in ("1", "true", "yes")
-if _wv_on:
-    os.environ.setdefault(
-        "CLEARCOTE_WIDEVINE_DIR",
-        os.path.join(os.environ.get("XDG_CACHE_HOME", "/opt/xdg-cache"), "clearcote", "WidevineCdm"),
-    )
-    try:
-        from clearcote._widevine import seed_widevine
-
-        seed_widevine(PROFILE_DIR, quiet=True)
-        print("[clearcote] widevine CDM seeded", flush=True)
-    except Exception as exc:
-        print(f"[clearcote] widevine unavailable: {exc!r}", flush=True)
-
 try:
     args = fingerprint_args(opts)
 except Exception:
@@ -69,8 +56,8 @@ port = os.environ.get("PORT", os.environ.get("CC_PORT", "9222"))
 internal = os.environ.get("CC_INTERNAL_PORT", "9223")
 extra = os.environ.get("CC_EXTRA_ARGS", "").split()
 
-# Публикация loopback DevTools через socat: 0.0.0.0:$port -> 127.0.0.1:$internal
-subprocess.Popen(
+# Запуск socat прокси: 0.0.0.0:$port -> 127.0.0.1:$internal
+socat_proc = subprocess.Popen(
     ["socat", f"TCP-LISTEN:{port},fork,reuseaddr,bind=0.0.0.0", f"TCP:127.0.0.1:{internal}"]
 )
 
@@ -112,4 +99,29 @@ except Exception:
     pass
 
 print(f"[clearcote] CDP endpoint on 0.0.0.0:{port} (proxy -> chrome 127.0.0.1:{internal}) | persona={opts}", flush=True)
-os.execvpe(cmd[0], cmd, env)
+
+# Запускаем Chrome как дочерний процесс, сохраняя Python в качестве PID 1
+chrome_proc = subprocess.Popen(cmd, env=env)
+
+
+def shutdown(signum, frame):
+    print("[clearcote] Остановка процессов...", flush=True)
+    try:
+        chrome_proc.terminate()
+        socat_proc.terminate()
+        chrome_proc.wait(timeout=5)
+    except Exception:
+        chrome_proc.kill()
+        socat_proc.kill()
+    sys.exit(0)
+
+
+signal.signal(signal.SIGINT, shutdown)
+signal.signal(signal.SIGTERM, shutdown)
+
+try:
+    exit_code = chrome_proc.wait()
+    socat_proc.terminate()
+    sys.exit(exit_code)
+except KeyboardInterrupt:
+    shutdown(None, None)
