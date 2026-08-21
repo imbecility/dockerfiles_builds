@@ -4,5 +4,5 @@
 /var/cache/fontconfig
 /usr/share/fonts
 /usr/share/fontconfig
+/usr/lib/x86_64-linux-gnu
 /usr/bin/socat
-/usr/lib/x86_64-linux-gnu/gconv

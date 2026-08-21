@@ -18,11 +18,11 @@ RUN echo "deb http://deb.debian.org/debian trixie contrib" >> /etc/apt/sources.l
     libxrandr2 libgbm1 libpango-1.0-0 libcairo2 libasound2 libx11-xcb1 \
     libfontconfig1 libx11-6 libxcb1 libxext6 libxshmfence1 libglib2.0-0 \
     libgtk-3-0 libpangocairo-1.0-0 libcairo-gobject2 libgdk-pixbuf-2.0-0 \
-    libxss1 libxtst6 fonts-liberation fonts-croscore fonts-noto-color-emoji \
-    fonts-unifont fonts-freefont-ttf fonts-ipafont-gothic fonts-wqy-zenhei \
-    fonts-tlwg-loma-otf libgl1-mesa-dri libegl-mesa0 xvfb x11-utils xdotool \
-    mesa-utils libglx-mesa0 libgl1 libegl1 libglvnd0 ttf-mscorefonts-installer \
-    fontconfig socat && \
+    libxss1 libxtst6 fonts-liberation fonts-croscore fonts-crosextra-carlito \
+    fonts-crosextra-caladea fonts-noto-color-emoji fonts-unifont fonts-freefont-ttf \
+    fonts-ipafont-gothic fonts-wqy-zenhei fonts-tlwg-loma-otf libgl1-mesa-dri \
+    libegl-mesa0 xvfb x11-utils xdotool mesa-utils libglx-mesa0 libgl1 libegl1 \
+    libglvnd0 ttf-mscorefonts-installer fontconfig socat && \
     uv venv --python 3.14 && uv pip install pip && \
     pip install --no-cache-dir playwright httpx clearcote && \
     playwright install-deps chromium 2>/dev/null || true && \
@@ -44,7 +44,6 @@ COPY --chmod=755 <<-"EOF" /app/start.sh
 #!/bin/bash
 cat /app/resolv.conf > /etc/resolv.conf 2>/dev/null || true
 touch /.dockerenv 2>/dev/null || true
-export HTTPX_LOG_LEVEL=warning
 export DISPLAY=:99
 
 Xvfb :99 -screen 0 1920x1080x24 -nolisten tcp &
