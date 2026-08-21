@@ -8,4 +8,3 @@
 
 /root/.cache/clearcote
 /root/.clearcote
-/usr/local/bin/clearcote-browser

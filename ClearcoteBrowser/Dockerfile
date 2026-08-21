@@ -4,11 +4,12 @@ ENV PATH="/app/.venv/bin:$PATH" \
     PORT=9222
 
 WORKDIR /app
+COPY server.py /app/server.py
 
 RUN echo "deb http://deb.debian.org/debian trixie contrib" >> /etc/apt/sources.list.d/contrib.list && \
     echo "ttf-mscorefonts-installer msttcorefonts/accepted-mscorefonts-eula select true" | debconf-set-selections && \
     apt-get update && apt-get install -y --no-install-recommends \
-    curl wget ca-certificates procps xclip ffmpeg unzip xz-utils \
+    curl wget ca-certificates procps xclip ffmpeg unzip xz-utils socat \
     libnss3 libnspr4 libatk1.0-0 libatk-bridge2.0-0 libcups2 \
     libdbus-1-3 libdrm2 libxkbcommon0 libatspi2.0-0 libxcomposite1 libxdamage1 \
     libxfixes3 libxrandr2 libgbm1 libpango-1.0-0 libcairo2 libasound2 \
@@ -23,10 +24,6 @@ RUN echo "deb http://deb.debian.org/debian trixie contrib" >> /etc/apt/sources.l
     playwright install-deps chromium 2>/dev/null || true && pip uninstall -y playwright && \
     python -c "import clearcote; clearcote.download()" && \
     find /root/.cache/clearcote -iname "chromedriver" -delete || true && \
-    CC_BIN=$(find /root/.cache/clearcote -type f -name "chrome" | head -n 1) && \
-    ln -sf "$CC_BIN" /usr/local/bin/clearcote-browser && \
-    chmod +x /usr/local/bin/clearcote-browser && \
-    mkdir -p /root/.clearcote/profile && \
     fc-cache -f && \
     rm -rf /var/lib/apt/lists/* /root/.cache/pip
 
@@ -39,10 +36,15 @@ EOF
 
 COPY --chmod=755 <<-"EOF" /app/start.sh
 #!/bin/bash
+# 1. Очищаем все запечённые SlimToolkit временные файлы и старые блокировки
+rm -rf /tmp/* /tmp/.[!.]* 2>/dev/null || true
+mkdir -p /tmp/.X11-unix
+chmod 1777 /tmp /tmp/.X11-unix
+
 cat /app/resolv.conf > /etc/resolv.conf 2>/dev/null || true
 touch /.dockerenv 2>/dev/null || true
-export HTTPX_LOG_LEVEL=warning
 export DISPLAY=:99
+
 Xvfb :99 -screen 0 1920x1080x24 -nolisten tcp &
 
 for i in $(seq 1 20); do
@@ -59,26 +61,14 @@ fi
 fc-cache -f 2>/dev/null || true
 
 PORT="${PORT:-9222}"
-FINGERPRINT="${CC_FINGERPRINT:-clearcote-seed-123}"
-PLATFORM="${CC_PLATFORM:-linux}"
+export CC_INTERNAL_PORT=9223
 
-echo -e "\n==================================\nstarting clearcote cdp server directly...\n==================================\n"
+echo "Starting socat proxy: 0.0.0.0:${PORT} -> 127.0.0.1:${CC_INTERNAL_PORT}"
+socat TCP-LISTEN:${PORT},fork,reuseaddr,bind=0.0.0.0 TCP:127.0.0.1:${CC_INTERNAL_PORT} &
 
-exec /usr/local/bin/clearcote-browser \
-    --remote-debugging-port="${PORT}" \
-    --remote-debugging-address=0.0.0.0 \
-    --remote-allow-origins="*" \
-    --user-data-dir=/root/.clearcote/profile \
-    --fingerprint="${FINGERPRINT}" \
-    --fingerprint-platform="${PLATFORM}" \
-    --no-sandbox \
-    --disable-setuid-sandbox \
-    --disable-dev-shm-usage \
-    --disable-gpu \
-    --disable-vulkan \
-    --window-size=1920,1080 \
-    --start-maximized \
-    --headless=false
+echo -e "\n==================================\nstarting clearcote cdp server...\n==================================\n"
+
+exec /app/.venv/bin/python -u /app/server.py
 EOF
 
 EXPOSE ${PORT}
