@@ -8,7 +8,7 @@ from clearcote import serve
 def main() -> None:
     port = int(os.getenv("CC_INTERNAL_PORT", "9223"))
     fingerprint = os.getenv("CC_FINGERPRINT", "clearcote-seed-123")
-    platform = os.getenv("CC_PLATFORM", "windows")
+    platform = os.getenv("CC_PLATFORM", "linux")
     brand = os.getenv("CC_BRAND", "Chrome")
 
     print(f"[clearcote] Запуск через официальный SDK на порту {port}...", flush=True)
