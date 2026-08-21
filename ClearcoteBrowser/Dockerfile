@@ -36,8 +36,8 @@ cat /app/resolv.conf > /etc/resolv.conf 2>/dev/null || true
 touch /.dockerenv 2>/dev/null || true
 export DISPLAY=:99
 
-# Очистка мусора от фазы SlimToolkit перед запуском
-rm -rf /tmp/.X* /tmp/cc_profile_* 2>/dev/null || true
+# ГЛАВНЫЙ ФИКС: Удаляем ВСЕ мертвые кэши, конфиги и локи, которые запеклись во время работы SlimToolkit
+rm -rf /tmp/* /tmp/.* 2>/dev/null || true
 
 Xvfb :99 -screen 0 1920x1080x24 -nolisten tcp &
 
@@ -48,13 +48,14 @@ for i in $(seq 1 20); do
     fi
     sleep 0.5
 done
-if ! xdpyinfo -display :99 >/dev/null 2>&1; then
-    echo "Xvfb не поднялся за отведенное время!" >&2
-    exit 1
-fi
 
 PORT="${PORT:-9222}"
-echo -e "\n==================================\nstarting clearcote cdp server...\nconnect:\nwith sync_playwright() as p:\n    browser = p.chromium.connect_over_cdp('http://localhost:${PORT}')\n==================================\n"
+export CC_INTERNAL_PORT=9223
+
+echo "Starting socat proxy: 0.0.0.0:${PORT} -> 127.0.0.1:${CC_INTERNAL_PORT}"
+socat TCP-LISTEN:${PORT},fork,reuseaddr,bind=0.0.0.0 TCP:127.0.0.1:${CC_INTERNAL_PORT} &
+
+echo -e "\n==================================\nstarting clearcote cdp server...\n==================================\n"
 exec /app/.venv/bin/python -u /app/server.py
 EOF
 
