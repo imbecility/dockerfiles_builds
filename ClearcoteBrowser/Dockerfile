@@ -28,6 +28,10 @@ nameserver 2606:4700:4700::1002
 EOF
 COPY --chmod=755 <<-"EOF" /app/start.sh
 #!/bin/bash
+# ВРЕМЕННО: подробная трассировка каждой команды в логи контейнера,
+# пока не найдена причина таймаута CDP. Снять после диагностики.
+set -x
+
 cat /app/resolv.conf > /etc/resolv.conf 2>/dev/null || true
 touch /.dockerenv 2>/dev/null || true
 export DISPLAY=:99
@@ -51,9 +55,26 @@ INTERNAL_PORT="${INTERNAL_PORT:-9223}"
 # clearcote/Chromium биндит CDP только на 127.0.0.1 — пробрасываем на
 # внешний порт, который реально опубликован наружу контейнера.
 socat TCP-LISTEN:${PORT},fork,reuseaddr TCP:127.0.0.1:${INTERNAL_PORT} &
+SOCAT_PID=$!
 
-echo -e "\n==================================\nstarting clearcote cdp server...\nconnect:\nwith sync_playwright() as p:\n    browser = p.chromium.connect_over_cdp('http://localhost:${PORT}')\n==================================\n"
-exec /app/.venv/bin/python -u /app/server.py
+/app/.venv/bin/python -u /app/server.py &
+SERVER_PID=$!
+
+# ВРЕМЕННО: даём серверу 5 секунд и печатаем, кто реально слушает какие
+# порты внутри контейнера — это покажет, совпадает ли реальность с тем,
+# что предполагает server.py/start.sh.
+sleep 5
+echo "=== ПРОЦЕССЫ socat/python живы? ==="
+kill -0 $SOCAT_PID 2>/dev/null && echo "socat: жив (pid $SOCAT_PID)" || echo "socat: УМЕР"
+kill -0 $SERVER_PID 2>/dev/null && echo "server.py: жив (pid $SERVER_PID)" || echo "server.py: УМЕР"
+echo "=== СЛУШАЮЩИЕ TCP-ПОРТЫ ==="
+(ss -ltnp 2>/dev/null || netstat -ltnp 2>/dev/null || echo "ни ss, ни netstat не найдены")
+echo "=== ПРОВЕРКА CDP НАПРЯМУЮ НА INTERNAL_PORT (127.0.0.1:${INTERNAL_PORT}) ==="
+curl -s -m 3 "http://127.0.0.1:${INTERNAL_PORT}/json/version" || echo "internal port не отвечает"
+echo "=== ПРОВЕРКА CDP ЧЕРЕЗ SOCAT (127.0.0.1:${PORT}) ==="
+curl -s -m 3 "http://127.0.0.1:${PORT}/json/version" || echo "external port не отвечает"
+
+wait $SERVER_PID
 EOF
 EXPOSE ${PORT}
 CMD ["/bin/bash", "/app/start.sh"]

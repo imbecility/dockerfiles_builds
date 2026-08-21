@@ -289,6 +289,15 @@ jobs:
                 --http-probe-ports "$SERVICE_PORT"
             fi
 
+      - name: Debug container logs on failure
+        if: failure()
+        run: |
+          echo "=== Все контейнеры ==="
+          docker ps -a
+          echo "=== Логи последнего контейнера от clearcotebrowser:orig ==="
+          CID=$(docker ps -a --filter "ancestor=clearcotebrowser:orig" --format "{{.ID}}" | head -1)
+          if [ -n "$CID" ]; then docker logs "$CID"; fi
+
       # 5. ВЕРИФИКАЦИЯ: Запуск оптимизированного контейнера БЕЗ SlimToolkit и прогон полного test.py
       - name: Verify Minified Image (Pure Docker Run)
         run: |
