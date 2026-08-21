@@ -6,5 +6,24 @@
 # повлияло на итоговый краш — значит, дело не в файлах. Не раздуваем
 # образ ими без нужды.
 
+# ./ClearcoteBrowser/preserve_paths.txt
+# Виртуальное окружение и кэш Clearcote
+/app/.venv
 /root/.cache/clearcote
 /root/.clearcote
+
+# Системный динамический линковщик
+/etc/ld.so.cache
+/etc/ld.so.conf
+/etc/ld.so.conf.d
+
+# Системные динамические библиотеки и Mesa/DRI
+/usr/lib/x86_64-linux-gnu
+
+# Подсистемы X11, шрифтов, GLib и MIME, необходимые процессу рендерера при new_page
+/usr/share/X11
+/usr/share/fonts
+/usr/share/glib-2.0
+/usr/share/mime
+/etc/fonts
+/var/cache/fontconfig
