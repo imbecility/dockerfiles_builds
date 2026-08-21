@@ -1,6 +1,20 @@
+# ./ClearcoteBrowser/server.py
 import os
+import subprocess
 import sys
 import time
+
+# Принудительно заставляем все дочерние процессы (Chromium) писать логи прямо в stderr/stdout контейнера
+_orig_popen = subprocess.Popen
+
+
+def _unmuted_popen(*args, **kwargs):
+    kwargs["stdout"] = None
+    kwargs["stderr"] = None
+    return _orig_popen(*args, **kwargs)
+
+
+subprocess.Popen = _unmuted_popen
 
 from clearcote import serve
 
@@ -27,6 +41,8 @@ def main() -> None:
                 "--disable-vulkan",
                 "--window-size=1920,1080",
                 "--start-maximized",
+                "--enable-logging=stderr",
+                "--v=1",
             ],
         )
         print(f"[clearcote] CDP сервер запущен: {getattr(srv, 'cdp_url', f'http://127.0.0.1:{port}')}", flush=True)
