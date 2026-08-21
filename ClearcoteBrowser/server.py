@@ -1,28 +1,65 @@
+import glob
 import os
 import signal
 import subprocess
 import sys
 import tempfile
 
-import clearcote
+
+def get_chrome_executable() -> str:
+    # 1. Попытка через SDK clearcote
+    try:
+        import clearcote
+
+        for fn_name in ("executable_path", "download"):
+            if hasattr(clearcote, fn_name):
+                try:
+                    path = getattr(clearcote, fn_name)()
+                    if path and os.path.exists(path):
+                        return str(path)
+                except Exception:
+                    pass
+    except ImportError:
+        pass
+
+    # 2. Поиск по известным путям кэша в образе
+    search_patterns = [
+        "/root/.clearcote/**/chrome",
+        "/root/.cache/clearcote/**/chrome",
+        "/app/cache/clearcote/**/chrome",
+    ]
+    for pattern in search_patterns:
+        for match in glob.glob(pattern, recursive=True):
+            if os.path.isfile(match) and os.access(match, os.X_OK):
+                return match
+
+    raise RuntimeError("Не удалось найти исполняемый файл Chrome для Clearcote")
+
 
 if __name__ == "__main__":
-    port = os.getenv("PORT", "9222")
+    port = int(os.getenv("PORT", "9222"))
+    internal_port = port + 1  # 9223
+
     fingerprint = os.getenv("CC_FINGERPRINT", "clearcote-seed")
     platform = os.getenv("CC_PLATFORM", "windows")
 
-    try:
-        chrome_path = clearcote.download()
-    except Exception as e:
-        print(f"[FATAL] Ошибка получения бинарника Clearcote: {e}", file=sys.stderr)
-        sys.exit(1)
+    chrome_path = get_chrome_executable()
+    print(f"Используется бинарник Chrome: {chrome_path}")
+
+    # socat слушает 0.0.0.0:PORT и транслирует в 127.0.0.1:INTERNAL_PORT
+    socat_cmd = [
+        "socat",
+        f"TCP-LISTEN:{port},fork,reuseaddr",
+        f"TCP:127.0.0.1:{internal_port}",
+    ]
+    print(f"Запуск socat: 0.0.0.0:{port} -> 127.0.0.1:{internal_port}")
+    socat_proc = subprocess.Popen(socat_cmd)
 
     user_data_dir = os.getenv("USER_DATA_DIR", tempfile.mkdtemp(prefix="clearcote_profile_"))
 
-    cmd = [
+    chrome_cmd = [
         chrome_path,
-        f"--remote-debugging-port={port}",
-        "--remote-debugging-address=0.0.0.0",
+        f"--remote-debugging-port={internal_port}",
         f"--fingerprint={fingerprint}",
         f"--fingerprint-platform={platform}",
         f"--user-data-dir={user_data_dir}",
@@ -47,30 +84,31 @@ if __name__ == "__main__":
 
     proxy_url = os.getenv("PROXY_SERVER")
     if proxy_url:
-        cmd.append(f"--proxy-server={proxy_url}")
+        chrome_cmd.append(f"--proxy-server={proxy_url}")
 
     extra_args = os.getenv("CHROME_EXTRA_ARGS")
     if extra_args:
-        cmd.extend(extra_args.split())
+        chrome_cmd.extend(extra_args.split())
 
-    print(f"Запуск Clearcote Chromium на 0.0.0.0:{port}...")
+    print(f"Запуск Clearcote Chromium на внутреннем порту {internal_port}...")
     sys.stdout.flush()
 
-    proc = subprocess.Popen(cmd)
+    chrome_proc = subprocess.Popen(chrome_cmd)
 
-    def handle_sig(signum, frame):
-        if proc.poll() is None:
-            proc.terminate()
-            try:
-                proc.wait(timeout=5)
-            except subprocess.TimeoutExpired:
-                proc.kill()
+    def shutdown(signum, frame):
+        for proc in (chrome_proc, socat_proc):
+            if proc.poll() is None:
+                proc.terminate()
+                try:
+                    proc.wait(timeout=5)
+                except subprocess.TimeoutExpired:
+                    proc.kill()
         sys.exit(0)
 
-    signal.signal(signal.SIGTERM, handle_sig)
-    signal.signal(signal.SIGINT, handle_sig)
+    signal.signal(signal.SIGTERM, shutdown)
+    signal.signal(signal.SIGINT, shutdown)
 
     try:
-        proc.wait()
+        chrome_proc.wait()
     except KeyboardInterrupt:
-        handle_sig(None, None)
+        shutdown(None, None)

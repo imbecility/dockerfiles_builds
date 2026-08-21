@@ -22,7 +22,7 @@ RUN echo "deb http://deb.debian.org/debian trixie contrib" >> /etc/apt/sources.l
     fonts-unifont fonts-freefont-ttf fonts-ipafont-gothic fonts-wqy-zenhei \
     fonts-tlwg-loma-otf libgl1-mesa-dri libegl-mesa0 xvfb x11-utils xdotool \
     mesa-utils libglx-mesa0 libgl1 libegl1 libglvnd0 ttf-mscorefonts-installer \
-    fontconfig && \
+    fontconfig socat && \
     uv venv --python 3.14 && uv pip install pip && \
     pip install --no-cache-dir playwright httpx clearcote && \
     playwright install-deps chromium 2>/dev/null || true && \
@@ -64,7 +64,7 @@ fi
 
 PORT="${PORT:-9222}"
 echo -e "\n==================================\nstarting clearcote cdp server...\nconnect:\nwith sync_playwright() as p:\n    browser = p.chromium.connect_over_cdp('http://localhost:${PORT}')\n==================================\n"
-exec python -u /app/server.py
+exec /app/.venv/bin/python -u /app/server.py
 EOF
 
 EXPOSE ${PORT}

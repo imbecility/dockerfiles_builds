@@ -4,3 +4,4 @@
 /var/cache/fontconfig
 /usr/share/fonts
 /usr/share/fontconfig
+/usr/bin/socat
