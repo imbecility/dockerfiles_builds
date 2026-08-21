@@ -1,3 +1,4 @@
 /root/.cache/clearcote
 /root/.clearcote
 /opt/xdg-cache/clearcote
+/tmp/cc-profile

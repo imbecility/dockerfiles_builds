@@ -18,8 +18,7 @@ RUN echo "deb http://deb.debian.org/debian trixie contrib" >> /etc/apt/sources.l
     libgl1-mesa-dri libegl-mesa0 xvfb x11-utils xdotool mesa-utils libglx-mesa0 libgl1 libegl1 libglvnd0 \
     ttf-mscorefonts-installer git privoxy && \
     uv venv --python 3.14 && uv pip install pip && \
-    pip install --no-cache-dir playwright && playwright install-deps chromium 2>/dev/null || true && pip uninstall -y playwright && \
-    pip install --no-cache-dir clearcote httpx && \
+    pip install --no-cache-dir playwright httpx clearcote && playwright install-deps chromium 2>/dev/null || true && pip uninstall -y playwright && \
     python -c "import clearcote; clearcote.download()" && \
     fc-cache -f && rm -rf /var/lib/apt/lists/*
 
@@ -38,7 +37,6 @@ export DISPLAY=:99
 
 Xvfb :99 -screen 0 1920x1080x24 -nolisten tcp &
 
-# Ожидание готовности Xvfb
 for i in $(seq 1 20); do
     if xdpyinfo -display :99 >/dev/null 2>&1; then
         echo "Xvfb готов (попытка $i)"
