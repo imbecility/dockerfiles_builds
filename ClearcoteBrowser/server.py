@@ -1,6 +1,5 @@
 import os
 import subprocess
-import time
 from pathlib import Path
 
 from clearcote import executable_path
@@ -70,7 +69,7 @@ port = os.environ.get("PORT", os.environ.get("CC_PORT", "9222"))
 internal = os.environ.get("CC_INTERNAL_PORT", "9223")
 extra = os.environ.get("CC_EXTRA_ARGS", "").split()
 
-# Публикация loopback-only DevTools эндпоинта наружу через socat: 0.0.0.0:$port -> 127.0.0.1:$internal
+# Публикация loopback DevTools через socat: 0.0.0.0:$port -> 127.0.0.1:$internal
 subprocess.Popen(
     ["socat", f"TCP-LISTEN:{port},fork,reuseaddr,bind=0.0.0.0", f"TCP:127.0.0.1:{internal}"]
 )
@@ -81,17 +80,7 @@ if headless:
     mode_args = ["--headless=new"]
     print("[clearcote] display: pure headless (CC_HEADLESS set)", flush=True)
 else:
-    display = os.environ.get("DISPLAY") or ":99"
-    if not os.environ.get("DISPLAY"):
-        screen = os.environ.get("CC_SCREEN", "1920x1080x24")
-        subprocess.Popen(["Xvfb", display, "-screen", "0", screen, "-nolisten", "tcp", "-ac"])
-        sock = "/tmp/.X11-unix/X" + display.lstrip(":").split(".")[0]
-        for _ in range(100):
-            if os.path.exists(sock):
-                break
-            time.sleep(0.1)
-        os.environ["DISPLAY"] = display
-    print(f"[clearcote] display: headful on Xvfb {os.environ.get('DISPLAY')}", flush=True)
+    print(f"[clearcote] display: headful on DISPLAY={os.environ.get('DISPLAY', ':99')}", flush=True)
 
 wb_args = []
 try:
@@ -102,10 +91,15 @@ except Exception:
 cmd = [
     exe,
     "--no-sandbox",
+    "--disable-setuid-sandbox",
     "--disable-dev-shm-usage",
-    "--use-gl=angle",
-    "--use-angle=swiftshader",
-    "--enable-unsafe-swiftshader",
+    "--disable-gpu",
+    "--disable-vulkan",
+    "--no-first-run",
+    "--no-default-browser-check",
+    "--password-store=basic",
+    "--window-size=1920,1080",
+    "--start-maximized",
     f"--remote-debugging-port={internal}",
     "--remote-allow-origins=*",
     f"--user-data-dir={PROFILE_DIR}",
@@ -116,13 +110,6 @@ try:
     env.update(linux_font_env(exe))
 except Exception:
     pass
-
-_sd = os.environ.get("CC_SHADER_DIALECT")
-if _sd:
-    if _sd not in ("0", "false", "no"):
-        env["CLEARCOTE_SHADER_DIALECT"] = _sd
-elif opts.get("platform") == "windows":
-    env["CLEARCOTE_SHADER_DIALECT"] = "hlsl"
 
 print(f"[clearcote] CDP endpoint on 0.0.0.0:{port} (proxy -> chrome 127.0.0.1:{internal}) | persona={opts}", flush=True)
 os.execvpe(cmd[0], cmd, env)

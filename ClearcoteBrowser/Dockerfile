@@ -20,7 +20,10 @@ RUN echo "deb http://deb.debian.org/debian trixie contrib" >> /etc/apt/sources.l
     uv venv --python 3.14 && uv pip install pip && \
     pip install --no-cache-dir playwright httpx clearcote && playwright install-deps chromium 2>/dev/null || true && pip uninstall -y playwright && \
     python -c "import clearcote; clearcote.download()" && \
-    fc-cache -f && rm -rf /var/lib/apt/lists/*
+    fc-cache -f && rm -rf /var/lib/apt/lists/* && \
+    find /root/.cache/clearcote/v0.1.0-pre.22/browser/chrome -name "chromedriver" -delete || true && \
+    find /root/.cache/clearcote/v0.1.0-pre.22/browser/chrome/Locales -type f -name "*.pak" ! -name "en-US.pak" ! -name "ru.pak" -delete || true && \
+    find /root/.cache/clearcote/v0.1.0-pre.22/browser/chrome/locales -type f -name "*.pak" ! -name "en-US.pak" ! -name "ru.pak" -delete || true
 
 COPY <<-"EOF" /app/resolv.conf
 nameserver 1.1.1.1

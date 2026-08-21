@@ -2,3 +2,9 @@
 /root/.clearcote
 /opt/xdg-cache/clearcote
 /tmp/cc-profile
+/usr/share/fonts
+/usr/share/fontconfig
+/etc/fonts
+/var/cache/fontconfig
+/usr/bin/socat
+/usr/bin/Xvfb

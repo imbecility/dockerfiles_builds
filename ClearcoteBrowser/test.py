@@ -22,7 +22,7 @@ def main() -> None:
         context = browser.contexts[0] if browser.contexts else browser.new_context()
         context.set_default_timeout(15000)
 
-        page = context.new_page()
+        page = context.pages[0] if context.pages else context.new_page()
         try:
             print("Переход на ya.ru для проверки рендеринга...", flush=True)
             page.goto("https://ya.ru", wait_until="domcontentloaded", timeout=30000)
