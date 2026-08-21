@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-import glob
 import os
 import shutil
 import signal
@@ -46,11 +45,10 @@ def cleanup(procs):
 
 
 def main():
-    print("[clearcote] Поиск скомпилированного бинарника chrome...", flush=True)
+    print("[clearcote] Поиск бинарника chrome...", flush=True)
     chrome_bin = find_chrome_binary()
     print(f"[clearcote] Найден chrome: {chrome_bin}", flush=True)
 
-    # Чистим грязные локи профиля
     profile_dir = "/tmp/clearcote_profile"
     shutil.rmtree(profile_dir, ignore_errors=True)
     os.makedirs(profile_dir, exist_ok=True)

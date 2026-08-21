@@ -19,8 +19,6 @@ def main() -> None:
         browser = p.chromium.connect_over_cdp(CDP_URL)
         ctx = browser.contexts[0] if browser.contexts else browser.new_context()
 
-        # Важно: Вызов new_page() заставляет спавниться renderer-процесс в Docker
-        # Это гарантирует, что SlimToolkit зафиксирует вызовы к fontconfig и Skia
         page = ctx.new_page()
         print("Переход на https://example.com...", flush=True)
         page.goto("https://example.com", timeout=30000)

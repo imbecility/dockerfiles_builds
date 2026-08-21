@@ -7,7 +7,8 @@ ENV PATH="/app/.venv/bin:$PATH" \
     FINGERPRINT="seed-123" \
     PLATFORM="linux" \
     CLEARCOTE_CACHE_DIR=/root/.cache/clearcote \
-    XDG_CACHE_HOME=/root/.cache
+    XDG_CACHE_HOME=/root/.cache \
+    FONTCONFIG_PATH=/etc/fonts
 
 WORKDIR /app
 COPY server.py /app/server.py
@@ -28,7 +29,12 @@ RUN echo "deb http://deb.debian.org/debian trixie contrib" >> /etc/apt/sources.l
     pip uninstall -y playwright && \
     python -c "import clearcote; clearcote.download()" && \
     find /root/.cache -name "chromedriver" -delete 2>/dev/null || true && \
-    fc-cache -f && \
+    fc-cache -f -v && \
+    # Резервное копирование системных шрифтов, конфигов и gconv в /app (защита от сжатия SlimToolkit)
+    mkdir -p /app/etc_fonts /app/share_fonts /app/gconv && \
+    cp -a /etc/fonts/* /app/etc_fonts/ && \
+    cp -a /usr/share/fonts/* /app/share_fonts/ && \
+    cp -a /usr/lib/x86_64-linux-gnu/gconv/* /app/gconv/ 2>/dev/null || true && \
     rm -rf /var/lib/apt/lists/*
 
 COPY <<-"EOF" /app/resolv.conf
@@ -45,9 +51,27 @@ cat /app/resolv.conf > /etc/resolv.conf 2>/dev/null || true
 touch /.dockerenv 2>/dev/null || true
 export DISPLAY=:99
 
+# Восстановление fontconfig и шрифтов, если SlimToolkit удалил системные директории
+if [ ! -f /etc/fonts/fonts.conf ] && [ -d /app/etc_fonts ]; then
+    echo "[start.sh] Восстановление /etc/fonts из /app/etc_fonts..."
+    mkdir -p /etc/fonts
+    cp -a /app/etc_fonts/* /etc/fonts/
+fi
+
+if [ ! -d /usr/share/fonts/truetype ] && [ -d /app/share_fonts ]; then
+    echo "[start.sh] Восстановление /usr/share/fonts из /app/share_fonts..."
+    mkdir -p /usr/share/fonts
+    cp -a /app/share_fonts/* /usr/share/fonts/
+fi
+
+if [ ! -d /usr/lib/x86_64-linux-gnu/gconv ] && [ -d /app/gconv ]; then
+    echo "[start.sh] Восстановление /usr/lib/x86_64-linux-gnu/gconv..."
+    mkdir -p /usr/lib/x86_64-linux-gnu/gconv
+    cp -a /app/gconv/* /usr/lib/x86_64-linux-gnu/gconv/ 2>/dev/null || true
+fi
+
 Xvfb :99 -screen 0 1920x1080x24 -nolisten tcp &
 
-# Блок проверки Xvfb через стандартное условие 'if' (не ломает выполнение скрипта)
 for i in $(seq 1 30); do
     if xdpyinfo -display :99 >/dev/null 2>&1; then
         echo "Xvfb готов (попытка $i)"
