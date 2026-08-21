@@ -3,38 +3,37 @@ import signal
 import subprocess
 import sys
 import tempfile
-from pathlib import Path
 
-# Поиск бинарника в фиксированной директории
-CHROME_BIN = None
-for p in Path("/root/.clearcote").rglob("chrome"):
-    if p.is_file() and os.access(p, os.X_OK):
-        CHROME_BIN = str(p)
-        break
+from clearcote import executable_path
+from clearcote._fingerprint import fingerprint_args
+from clearcote._fonts import linux_font_env
 
-if not CHROME_BIN:
-    import clearcote
-    CHROME_BIN = str(clearcote.executable_path())
+exe = executable_path()
+print(f"[clearcote] executable: {exe}", flush=True)
 
-print(f"[clearcote] Chromium binary: {CHROME_BIN}", flush=True)
+opts = {
+    "fingerprint": os.environ.get("CC_FINGERPRINT", "clearcote-seed-123"),
+    "platform": os.environ.get("CC_PLATFORM", "windows"),
+}
+brand = os.environ.get("CC_BRAND")
+if brand:
+    opts["brand"] = brand
 
-port = int(os.getenv("PORT", "9222"))
-internal = int(os.getenv("CC_INTERNAL_PORT", "9223"))
-fingerprint = os.getenv("CC_FINGERPRINT", "clearcote-seed-123")
-platform = os.getenv("CC_PLATFORM", "windows")
-brand = os.getenv("CC_BRAND", "Chrome")
+args = fingerprint_args(opts)
 
-# Уникальная временная папка для профиля при каждом запуске
-# (Защита от запекания мертвых lock-файлов в SlimToolkit)
-profile_dir = tempfile.mkdtemp(prefix="cc_profile_")
+port = os.environ.get("PORT", "9222")
+internal = "9223"
 
 # TCP-прокси для DevTools: 0.0.0.0:$port -> 127.0.0.1:$internal
 socat_proc = subprocess.Popen(
     ["socat", f"TCP-LISTEN:{port},fork,reuseaddr,bind=0.0.0.0", f"TCP:127.0.0.1:{internal}"]
 )
 
+# Уникальная папка для профиля защищает от запекания мертвых локов при анализе SlimToolkit
+profile_dir = tempfile.mkdtemp(prefix="cc_profile_")
+
 cmd = [
-    CHROME_BIN,
+    exe,
     "--no-sandbox",
     "--disable-setuid-sandbox",
     "--disable-dev-shm-usage",
@@ -47,31 +46,24 @@ cmd = [
     "--start-maximized",
     f"--remote-debugging-port={internal}",
     "--remote-allow-origins=*",
-    f"--fingerprint={fingerprint}",
-    f"--fingerprint-platform={platform}",
-    f"--fingerprint-brand={brand}",
     f"--user-data-dir={profile_dir}",
     "about:blank",
-]
+] + args
 
-tz = os.getenv("CC_TIMEZONE")
-if tz:
-    cmd.append(f"--timezone={tz}")
+env = dict(os.environ)
+try:
+    # Обязательный модуль! Генерирует конфиг шрифтов в ~/.cache/clearcote
+    env.update(linux_font_env(exe))
+except Exception as e:
+    print(f"[WARN] linux_font_env failed: {e}", flush=True)
 
-lang = os.getenv("CC_ACCEPT_LANGUAGE")
-if lang:
-    cmd.append(f"--lang={lang}")
+print(f"[clearcote] Launching: {' '.join(cmd)}", flush=True)
 
-proxy = os.getenv("PROXY_SERVER")
-if proxy:
-    cmd.append(f"--proxy-server={proxy}")
-
-print(f"[clearcote] Запуск Chromium: {' '.join(cmd)}", flush=True)
-chrome_proc = subprocess.Popen(cmd)
-
+# Запускаем как дочерний процесс
+chrome_proc = subprocess.Popen(cmd, env=env)
 
 def shutdown(signum, frame):
-    print("[clearcote] Завершение процессов...", flush=True)
+    print("[clearcote] Shutting down...", flush=True)
     try:
         chrome_proc.terminate()
         socat_proc.terminate()
@@ -81,13 +73,7 @@ def shutdown(signum, frame):
         socat_proc.kill()
     sys.exit(0)
 
-
 signal.signal(signal.SIGINT, shutdown)
 signal.signal(signal.SIGTERM, shutdown)
 
-try:
-    exit_code = chrome_proc.wait()
-    socat_proc.terminate()
-    sys.exit(exit_code)
-except KeyboardInterrupt:
-    shutdown(None, None)
+sys.exit(chrome_proc.wait())

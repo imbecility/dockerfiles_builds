@@ -2,8 +2,7 @@ FROM debian:stable-slim
 
 COPY --from=ghcr.io/astral-sh/uv:latest /uv /uvx /bin/
 ENV PATH="/app/.venv/bin:$PATH" \
-    PORT=9222 \
-    CLEARCOTE_CACHE_DIR=/root/.clearcote
+    PORT=9222
 
 WORKDIR /app
 COPY server.py /app/server.py
@@ -20,8 +19,7 @@ RUN echo "deb http://deb.debian.org/debian trixie contrib" >> /etc/apt/sources.l
     ttf-mscorefonts-installer git privoxy socat && \
     uv venv --python 3.14 && uv pip install pip && \
     pip install --no-cache-dir playwright httpx clearcote && playwright install-deps chromium 2>/dev/null || true && pip uninstall -y playwright && \
-    mkdir -p /root/.clearcote && \
-    python -c "import clearcote; clearcote.download(cache_dir='/root/.clearcote')" && \
+    python -c "import clearcote; clearcote.download()" && \
     find /root/.cache/clearcote/v0.1.0-pre.22/browser/chrome -name "chromedriver" -delete || true && \
     fc-cache -f && rm -rf /var/lib/apt/lists/* /root/.cache/*
 
@@ -36,11 +34,10 @@ COPY --chmod=755 <<-"EOF" /app/start.sh
 #!/bin/bash
 cat /app/resolv.conf > /etc/resolv.conf 2>/dev/null || true
 touch /.dockerenv 2>/dev/null || true
-
-# Удаляем любые кэши и локи, запекшиеся в образ при анализе SlimToolkit
-rm -rf /tmp/.X* /tmp/cc_profile_* 2>/dev/null || true
-
 export DISPLAY=:99
+
+# Очистка мусора от фазы SlimToolkit перед запуском
+rm -rf /tmp/.X* /tmp/cc_profile_* 2>/dev/null || true
 
 Xvfb :99 -screen 0 1920x1080x24 -nolisten tcp &
 

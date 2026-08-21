@@ -1,16 +1,1 @@
-/root/.cache/clearcote
 /root/.clearcote
-/opt/xdg-cache/clearcote
-/tmp/cc-profile
-/usr/share/fonts
-/usr/share/fontconfig
-/etc/fonts
-/var/cache/fontconfig
-/etc/ssl
-/etc/ca-certificates
-/usr/share/ca-certificates
-/usr/lib/x86_64-linux-gnu/dri
-/usr/lib/x86_64-linux-gnu/gconv
-/usr/share/X11
-/usr/bin/socat
-/usr/bin/Xvfb
