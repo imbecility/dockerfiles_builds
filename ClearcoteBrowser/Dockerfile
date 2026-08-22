@@ -30,4 +30,4 @@ USER cc
 EXPOSE 9222
 # Персона через env: CC_PLATFORM (windows|linux|macos|android), CC_FINGERPRINT, CC_BRAND,
 # CC_ACCEPT_LANGUAGE, CC_TIMEZONE, CC_HARDWARE_CONCURRENCY, CC_GPU_VENDOR/RENDERER, CC_TLS_PROFILE.
-ENTRYPOINT ["/app/.venv/bin/python", "/app/serve.py"]
+CMD ["/app/.venv/bin/python", "/app/serve.py"]
