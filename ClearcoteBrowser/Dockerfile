@@ -19,6 +19,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     pip install --no-cache-dir clearcote httpx && \
     python -c "from clearcote import download; print('binary:', download())" && \
     useradd -m -u 10001 cc && chown -R cc /opt/xdg-cache /app && \
+    chmod 755 /root && chmod -R a+rX /root/.local && \
     rm -rf /var/lib/apt/lists/*
 
 # Кэш движка — как VOLUME у оригинала, чтобы пережить пересоздание контейнера
