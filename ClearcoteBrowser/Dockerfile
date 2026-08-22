@@ -1,60 +1,32 @@
 FROM debian:stable-slim
 COPY --from=ghcr.io/astral-sh/uv:latest /uv /uvx /bin/
 ENV PATH="/app/.venv/bin:$PATH" \
-    PORT=9222
-
+    XDG_CACHE_HOME=/opt/xdg-cache
 WORKDIR /app
-COPY server.py /app/server.py
+COPY serve.py /app/serve.py
 
-RUN echo "deb http://deb.debian.org/debian trixie contrib" >> /etc/apt/sources.list.d/contrib.list && \
-    echo "ttf-mscorefonts-installer msttcorefonts/accepted-mscorefonts-eula select true" | debconf-set-selections && \
-    apt-get update && apt-get install -y --no-install-recommends \
-    curl wget ca-certificates procps ffmpeg unzip xz-utils socat strace \
-    libnss3 libnspr4 libatk1.0-0 libatk-bridge2.0-0 libcups2 \
-    libdbus-1-3 libdrm2 libxkbcommon0 libatspi2.0-0 libxcomposite1 libxdamage1 \
-    libxfixes3 libxrandr2 libgbm1 libpango-1.0-0 libcairo2 libasound2 \
-    libx11-xcb1 libfontconfig1 libx11-6 libxcb1 libxext6 libxshmfence1 libglib2.0-0 \
-    libgtk-3-0 libpangocairo-1.0-0 libcairo-gobject2 libgdk-pixbuf-2.0-0 libxss1 libxtst6 \
-    fonts-liberation fonts-croscore fonts-noto-color-emoji fonts-unifont fonts-freefont-ttf \
-    fonts-ipafont-gothic fonts-wqy-zenhei fonts-tlwg-loma-otf \
-    libgl1-mesa-dri libegl-mesa0 mesa-utils libglx-mesa0 libgl1 libegl1 libglvnd0 \
-    ttf-mscorefonts-installer git && \
+# Набор пакетов — как в официальном Dockerfile clearcote-labs: только рантайм-либы
+# Chromium + базовый набор шрифтов. Никаких Mesa/EGL — SwiftShader (программный
+# рендер) зашит внутри самого бинарника chrome и системных GL-либ не требует.
+RUN apt-get update && apt-get install -y --no-install-recommends \
+      xz-utils ca-certificates socat xvfb \
+      libnss3 libnspr4 libgbm1 libasound2 libatk1.0-0 libatk-bridge2.0-0 libcups2 libdrm2 \
+      libxkbcommon0 libxcomposite1 libxdamage1 libxrandr2 libxfixes3 libxext6 libxrender1 libxcb1 \
+      libpango-1.0-0 libcairo2 libx11-6 libexpat1 libdbus-1-3 libxi6 libxtst6 \
+      fontconfig fonts-liberation fonts-noto-color-emoji fonts-unifont fonts-wqy-zenhei && \
     uv venv --python 3.14 && uv pip install pip && \
-    pip install --no-cache-dir playwright httpx clearcote && \
-    playwright install-deps chromium 2>/dev/null || true && pip uninstall -y playwright && \
-    python -c "import clearcote; clearcote.download()" && \
-    find /root/.cache/clearcote -iname "chromedriver" -delete || true && \
-    fc-cache -f && \
-    rm -rf /var/lib/apt/lists/* /root/.cache/pip
+    mkdir -p /opt/xdg-cache && \
+    pip install --no-cache-dir clearcote httpx && \
+    python -c "from clearcote import download; print('binary:', download())" && \
+    useradd -m -u 10001 cc && chown -R cc /opt/xdg-cache /app && \
+    rm -rf /var/lib/apt/lists/*
 
-COPY <<-"EOF" /app/resolv.conf
-nameserver 1.1.1.1
-nameserver 1.0.0.1
-nameserver 2606:4700:4700::1111
-nameserver 2606:4700:4700::1002
-EOF
+# Кэш движка — как VOLUME у оригинала, чтобы пережить пересоздание контейнера
+# и не тянуть ~180 MB заново на каждый старт.
+VOLUME ["/opt/xdg-cache"]
 
-COPY --chmod=755 <<-"EOF" /app/start.sh
-#!/bin/bash
-cat /app/resolv.conf > /etc/resolv.conf 2>/dev/null || true
-touch /.dockerenv 2>/dev/null || true
-
-PORT="${PORT:-9222}"
-export CC_INTERNAL_PORT=9223
-
-echo "Starting socat proxy: 0.0.0.0:${PORT} -> 127.0.0.1:${CC_INTERNAL_PORT}"
-socat TCP-LISTEN:${PORT},fork,reuseaddr,bind=0.0.0.0 TCP:127.0.0.1:${CC_INTERNAL_PORT} &
-
-echo -e "\n==================================\nstarting clearcote cdp server (headless)...\n==================================\n"
-
-if [ "${DEBUG_STRACE:-0}" = "1" ]; then
-    echo "=== ЗАПУСК ПОД STRACE (DEBUG_STRACE=1) ==="
-    exec strace -f -tt -o /tmp/clearcote-strace.log \
-        /app/.venv/bin/python -u /app/server.py
-else
-    exec /app/.venv/bin/python -u /app/server.py
-fi
-EOF
-
-EXPOSE ${PORT}
-CMD ["/bin/bash", "/app/start.sh"]
+USER cc
+EXPOSE 9222
+# Персона через env: CC_PLATFORM (windows|linux|macos|android), CC_FINGERPRINT, CC_BRAND,
+# CC_ACCEPT_LANGUAGE, CC_TIMEZONE, CC_HARDWARE_CONCURRENCY, CC_GPU_VENDOR/RENDERER, CC_TLS_PROFILE.
+ENTRYPOINT ["/app/.venv/bin/python", "/app/serve.py"]
