@@ -1,10 +1,17 @@
-# ./.github/workflows/ci.yml
 name: Dynamic Build, Optimize and Publish
 
 on:
   push:
     branches: [ "main", "master" ]
+  schedule:
+    # каждые 4 часа для проверки апстрим-релизов в PyPI
+    - cron: '0 */4 * * *'
   workflow_dispatch:
+    inputs:
+      service:
+        description: 'сервис для сборки (all / Camoufox / ClearcoteBrowser / CloakBrowser)'
+        required: false
+        default: 'all'
 
 env:
   REGISTRY: ghcr.io
@@ -12,70 +19,39 @@ env:
 jobs:
   setup-matrix:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: read
     outputs:
       matrix: ${{ steps.set-matrix.outputs.matrix }}
     steps:
+      # https://github.com/actions/checkout/releases/tag/v7.0.1
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           fetch-depth: 0
 
-      - name: Detect changed services
+      - name: Set up Python for detection
+      # https://github.com/actions/setup-python/releases/tag/v7.0.0
+        uses: actions/setup-python@v7
+        with:
+          python-version: '3.14'
+
+      - name: Install detection dependencies
+        run: pip install httpx
+
+      - name: Detect services to build
         id: set-matrix
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          OWNER: ${{ github.repository_owner }}
+          REPO: ${{ github.event.repository.name }}
+          EVENT_NAME: ${{ github.event_name }}
+          INPUT_SERVICE: ${{ inputs.service }}
+          BEFORE: ${{ github.event.before }}
+          SHA: ${{ github.sha }}
         run: |
-          SERVICES=()
-          echo "=== НАЧАЛО ПОИСКА ==="
-          BEFORE="${{ github.event.before }}"
-          SHA="${{ github.sha }}"
-
-          if [ "$BEFORE" == "0000000000000000000000000000000000000000" ] || [ -z "$BEFORE" ]; then
-            echo "Новая ветка. Сравниваем текущий коммит с предыдущим (HEAD~1)."
-            DIFF_FILES=$(git diff --name-only HEAD~1 HEAD 2>/dev/null || echo "new_branch")
-          else
-            DIFF_FILES=$(git diff --name-only $BEFORE $SHA 2>/dev/null || echo "")
-          fi
-
-          echo "Измененные файлы в этом пуше:"
-          echo "$DIFF_FILES"
-          echo "---------------------"
-
-          for dockerfile in $(find . -type f -name "Dockerfile" -not -path '*/\.*'); do
-            DIR=$(dirname "$dockerfile" | sed 's|^\./||')
-
-            if [ "$DIR" == "." ]; then
-              echo "Нашли Dockerfile в корне репозитория, пропускаем..."
-              continue
-            fi
-
-            echo "Проверяем папку: $DIR"
-            HAS_CHANGES=false
-
-            if [ "${{ github.event_name }}" == "workflow_dispatch" ]; then
-              echo "  -> Ручной запуск: добавляем в сборку"
-              HAS_CHANGES=true
-            else
-              if echo "$DIFF_FILES" | grep -q "^$DIR/"; then
-                echo "  -> [V] Найдены изменения в коде!"
-                HAS_CHANGES=true
-              else
-                echo "  -> [X] Изменений нет"
-              fi
-            fi
-
-            if [ "$HAS_CHANGES" = true ]; then
-              SERVICES+=("\"$DIR\"")
-            fi
-          done
-
-          echo "=== РЕЗУЛЬТАТ ==="
-          if [ ${#SERVICES[@]} -eq 0 ]; then
-            echo "Нет сервисов для сборки."
-            echo "matrix=[]" >> $GITHUB_OUTPUT
-          else
-            JSON_ARRAY="[$(IFS=,; echo "${SERVICES[*]}")]"
-            echo "Собираем: $JSON_ARRAY"
-            echo "matrix=$JSON_ARRAY" >> $GITHUB_OUTPUT
-          fi
+          python3 scripts/detect_service_to_build.py
 
   build-and-push:
     needs: setup-matrix
@@ -84,6 +60,14 @@ jobs:
     permissions:
       contents: read
       packages: write
+    # Изолированная блокировка параллельных сборок одного и того же сервиса
+    concurrency:
+      group: ${{ github.workflow }}-${{ matrix.service }}
+      cancel-in-progress: false
+    # ВАЖНО: Dockerfile каждого сервиса должен использовать CMD, а не ENTRYPOINT -
+    # шаги "Sync Playwright Version" и "Extract Internal Browser Version" полагаются
+    # на то, что `docker run image <команда>` ЗАМЕНЯЕТ команду контейнера, а не
+    # дописывается к ней. С ENTRYPOINT это приводит к тихому зависанию джобы
     strategy:
       fail-fast: false
       matrix:
@@ -91,31 +75,29 @@ jobs:
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Set up Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v7
         with:
           python-version: '3.14'
 
       - name: Install Python Test Dependencies
         run: |
-          python -m pip install --upgrade pip
-
-          # Персональный файл зависимостей в папке сервиса
+          python -m pip install --upgrade pip httpx
           SERVICE_DIR="./${{ matrix.service }}"
 
           if [ -f "$SERVICE_DIR/requirements-test.txt" ]; then
-            echo "Найден $SERVICE_DIR/requirements-test.txt, устанавливаем зависимости..."
+            echo "ℹ️ найден $SERVICE_DIR/requirements-test.txt, устанавливаем зависимости..."
             pip install -r "$SERVICE_DIR/requirements-test.txt"
           elif [ -f "$SERVICE_DIR/requirements.txt" ]; then
-            echo "Найден $SERVICE_DIR/requirements.txt, устанавливаем зависимости..."
+            echo "ℹ️ найден $SERVICE_DIR/requirements.txt, устанавливаем зависимости..."
             pip install -r "$SERVICE_DIR/requirements.txt"
           else
-            echo "Файл зависимостей в $SERVICE_DIR не найден, используются базовые библиотеки."
+            echo "⚠️ файл зависимостей в $SERVICE_DIR не найден, используются базовые библиотеки."
           fi
 
-      # Системные (apt) зависимости, нужные ТОЛЬКО тесту (запускается на раннере
+      # системные (apt) зависимости, нужные ТОЛЬКО тесту (запускается на раннере
       # через slim build --host-exec, т.е. вне контейнера) — например ffmpeg
       # для генерации тестовых видео/аудио. В финальный образ не попадают.
       - name: Install Linux Test Dependencies
@@ -124,17 +106,17 @@ jobs:
           DEPS_FILE="$SERVICE_DIR/linux_deps.txt"
 
           if [ -f "$DEPS_FILE" ]; then
-            echo "Найден $DEPS_FILE, читаем список пакетов..."
+            echo "ℹ️ найден $DEPS_FILE, читаем список пакетов..."
             PACKAGES=$(grep -vE '^\s*(#|$)' "$DEPS_FILE" | tr '\n' ' ' | xargs)
             if [ -n "$PACKAGES" ]; then
-              echo "Устанавливаем на раннер: $PACKAGES"
+              echo "устанавливаем на раннер: $PACKAGES"
               sudo apt-get update
               sudo apt-get install -y --no-install-recommends $PACKAGES
             else
-              echo "Файл найден, но пуст (только комментарии) — пропускаем."
+              echo "⚠️ файл найден, но пуст (только комментарии) — пропускаем."
             fi
           else
-            echo "$DEPS_FILE не найден, системные зависимости для теста не устанавливаются."
+            echo "ℹ️ $DEPS_FILE не найден, системные зависимости для теста не устанавливаются."
           fi
 
       - name: Log in to GitHub Container Registry
@@ -147,86 +129,45 @@ jobs:
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
-      - name: Generate Lowercase Names
+      - name: Generate Lowercase Names & Version Tags
         id: names
         run: |
-          # Имя локального тега в нижнем регистре (например: cloackbrowser)
           SERVICE_LOWER=$(echo "${{ matrix.service }}" | tr '[:upper:]' '[:lower:]')
-
-          # Полный путь к тегу в GHCR
-          IMAGE_TAG=$(echo "${{ env.REGISTRY }}/${{ github.repository }}/${SERVICE_LOWER}" | tr '[:upper:]' '[:lower:]')
-
+          IMAGE_BASE=$(echo "${{ env.REGISTRY }}/${{ github.repository }}/${SERVICE_LOWER}" | tr '[:upper:]' '[:lower:]')
           echo "service_lower=${SERVICE_LOWER}" >> $GITHUB_OUTPUT
-          echo "tag=${IMAGE_TAG}:latest" >> $GITHUB_OUTPUT
+          echo "tag_latest=${IMAGE_BASE}:latest" >> $GITHUB_OUTPUT
 
-      # Собираем исходный Fat образ
+      # сборка исходного Fat-образа
       - name: Build Fat Docker image
         uses: docker/build-push-action@v6
         with:
-          context: ./${{ matrix.service }} # Сохраняет реальный путь к папке
+          context: ./${{ matrix.service }}
           push: false
           load: true
-          tags: ${{ steps.names.outputs.service_lower }}:orig  # Использует нижний регистр
+          tags: ${{ steps.names.outputs.service_lower }}:orig
 
       # Синхронизация версии playwright на раннере с той, что реально запечена в образе.
       # Playwright-server (Camoufox) жёстко проверяет совпадение версий клиент/сервер: расхождение = "428 Precondition Required".
       - name: Sync Playwright Version With Image
         run: |
-          # 1. Запрашиваем версию напрямую из Python-окружения контейнера
-          IMAGE_PW_VERSION=$(docker run --rm "${{ steps.names.outputs.service_lower }}:orig" python -c '
-          import importlib.metadata, json, os, sys
-
-          # Вариант А: установлен ли сам пакет playwright?
-          try:
-              print(importlib.metadata.version("playwright"))
-              sys.exit(0)
-          except Exception:
-              pass
-
-          # Вариант Б: это Camoufox — читаем манифест драйвера из .cache или метаданных
-          cache_dir = "/root/.cache/camoufox"
-          if os.path.exists(cache_dir):
-              for root, _, files in os.walk(cache_dir):
-                  if "package.json" in files:
-                      try:
-                          with open(os.path.join(root, "package.json")) as f:
-                              d = json.load(f)
-                              if "playwright" in d.get("name", "") or "version" in d:
-                                  print(d["version"])
-                                  sys.exit(0)
-                      except Exception:
-                          pass
-
-          # Вариант В: узнаем зависимость playwright из метаданных camoufox
-          try:
-              reqs = importlib.metadata.requires("camoufox") or []
-              for r in reqs:
-                  if "playwright" in r:
-                      print(r)
-                      sys.exit(0)
-          except Exception:
-              pass
-          ' 2>/dev/null || true)
-
-          echo "Результат детекции версии из образа: '$IMAGE_PW_VERSION'"
-
+          IMAGE_PW_VERSION=$(cat scripts/sync_playwright.py | docker run -i --rm "${{ steps.names.outputs.service_lower }}:orig" python - 2>/dev/null || true)
+          echo "ℹ️ результат детекции версии из образа: '$IMAGE_PW_VERSION'"
           if [ -n "$IMAGE_PW_VERSION" ]; then
-            # Извлекаем major.minor (например: 1.60.0 -> 1.60 или "playwright<1.61,>=1.60" -> 1.60)
+            # major.minor (например: 1.60.0 -> 1.60 или "playwright<1.61,>=1.60" -> 1.60)
             PW_MAJOR_MINOR=$(echo "$IMAGE_PW_VERSION" | grep -oE '[0-9]+\.[0-9]+' | head -n1)
             CURRENT_PW_VERSION=$(python3 -c "import playwright; print(playwright.__version__)" 2>/dev/null || true)
-            
-            echo "Целевая версия Playwright: $PW_MAJOR_MINOR (текущая на раннере: $CURRENT_PW_VERSION)"
+            echo "ℹ️ целевая версия Playwright: $PW_MAJOR_MINOR (текущая на раннере: $CURRENT_PW_VERSION)"
             if [[ "$CURRENT_PW_VERSION" != "$PW_MAJOR_MINOR"* ]]; then
-              echo "Версии различаются. Переустанавливаем Playwright на раннере..."
+              echo "⚠️ версии различаются: переустановка Playwright на раннере..."
               pip install "playwright~=${PW_MAJOR_MINOR}.0"
             else
-              echo "Версии Playwright совпадают."
+              echo "ℹ️ версии Playwright совпадают."
             fi
           else
-            echo "Специфичная версия Playwright не обнаружена, используется установленная по умолчанию."
+            echo "ℹ️ специфичная версия Playwright не обнаружена, используется установленная по умолчанию."
           fi
 
-      # Устанавливаем SlimToolkit
+      # установка SlimToolkit
       - name: Install SlimToolkit
         run: |
           curl -sL "https://github.com/slimtoolkit/slim/releases/latest/download/dist_linux.tar.gz" -o /tmp/ds.tar.gz
@@ -235,7 +176,7 @@ jobs:
           sudo ln -sf /usr/local/bin/docker-slim /usr/local/bin/slim 2>/dev/null || true
           slim --version
 
-      # Оптимизация через Slim (выбирает probe.py, если есть, иначе test.py)
+      # оптимизация через Slim (выбирает probe.py, если есть, иначе test.py)
       - name: Optimize Docker Image
         run: |
             PROBE_SCRIPT=""
@@ -245,15 +186,8 @@ jobs:
               PROBE_SCRIPT="./${{ matrix.service }}/test.py"
             fi
             
-            SERVICE_PORT=$(docker inspect "${{ steps.names.outputs.service_lower }}:orig" \
-              --format '{{json .Config.ExposedPorts}}' \
-              | python3 -c "import sys, json; d = json.load(sys.stdin); print(list(d.keys())[0].split('/')[0])")
-            
-            if [ -z "$SERVICE_PORT" ]; then
-              echo "Не удалось определить порт из EXPOSE — проверьте Dockerfile сервиса." >&2
-              exit 1
-            fi
-            echo "Определён порт сервиса: $SERVICE_PORT"
+            SERVICE_PORT=$(docker inspect "${{ steps.names.outputs.service_lower }}:orig" --format '{{json .Config.ExposedPorts}}' | python3 scripts/extract_port.py)
+            echo "ℹ️ определён порт сервиса: $SERVICE_PORT"
           
             SLIM_EXTRA_FLAGS=""
             PRESERVE_FILE="./${{ matrix.service }}/preserve_paths.txt"
@@ -268,10 +202,11 @@ jobs:
             fi
             
             if [ -n "$PROBE_SCRIPT" ]; then
-              echo "=== Slim Probe с использованием: $PROBE_SCRIPT ==="
+              DIV=$'\n==========================================\n'
+              echo -e "${DIV}🛠 Slim Probe с использованием: ${PROBE_SCRIPT}${DIV}"
               slim build \
                 --target ${{ steps.names.outputs.service_lower }}:orig \
-                --tag ${{ steps.names.outputs.tag }} \
+                --tag ${{ steps.names.outputs.tag_latest }} \
                 --expose "$SERVICE_PORT" \
                 --publish-port "$SERVICE_PORT:$SERVICE_PORT" \
                 --http-probe-off \
@@ -281,7 +216,7 @@ jobs:
             else
               slim build \
                 --target ${{ steps.names.outputs.service_lower }}:orig \
-                --tag ${{ steps.names.outputs.tag }} \
+                --tag ${{ steps.names.outputs.tag_latest }} \
                 --expose "$SERVICE_PORT" \
                 --publish-port "$SERVICE_PORT:$SERVICE_PORT" \
                 --show-clogs \
@@ -289,56 +224,60 @@ jobs:
                 --http-probe-ports "$SERVICE_PORT"
             fi
 
-      # 5. ВЕРИФИКАЦИЯ: Запуск оптимизированного контейнера БЕЗ SlimToolkit и прогон полного test.py
+      # запуск оптимизированного контейнера БЕЗ SlimToolkit и прогон полного test.py
       - name: Verify Minified Image (Pure Docker Run)
         run: |
           TEST_SCRIPT="./${{ matrix.service }}/test.py"
           if [ ! -f "$TEST_SCRIPT" ]; then
-            echo "test.py не найден, шаг верификации пропускается."
+            echo "⚠️ test.py не найден, шаг верификации пропускается."
             exit 0
           fi
 
-          SERVICE_PORT=$(docker inspect "${{ steps.names.outputs.tag }}" \
-            --format '{{json .Config.ExposedPorts}}' \
-            | python3 -c "import sys, json; d = json.load(sys.stdin); print(list(d.keys())[0].split('/')[0])")
+          SERVICE_PORT=$(docker inspect "${{ steps.names.outputs.service_lower }}:orig" --format '{{json .Config.ExposedPorts}}' | python3 scripts/extract_port.py)
 
           EXTRA_RUN_FLAGS=""
-          if [ "${{ matrix.service }}" == "ClearcoteBrowser" ]; then
-            EXTRA_RUN_FLAGS="--shm-size=1g"
+          FLAGS_FILE="./${{ matrix.service }}/docker_run_flags.txt"
+          if [ -f "$FLAGS_FILE" ]; then
+            EXTRA_RUN_FLAGS=$(grep -vE '^\s*(#|$)' "$FLAGS_FILE" | tr '\n' ' ' | xargs)
+            echo "ℹ️ доп. флаги docker run для ${{ matrix.service }}: $EXTRA_RUN_FLAGS"
           fi
 
-          echo "Запуск сжатого контейнера для финального тестирования..."
-          CONTAINER_ID=$(docker run -d $EXTRA_RUN_FLAGS -p "$SERVICE_PORT:$SERVICE_PORT" ${{ steps.names.outputs.tag }})
-
+          CONTAINER_ID=$(docker run -d $EXTRA_RUN_FLAGS -p "$SERVICE_PORT:$SERVICE_PORT" ${{ steps.names.outputs.tag_latest }})
+          
           cleanup() {
-            echo "Остановка проверочного контейнера..."
+            DIV=$"\n==========================================\n"
+            echo -e "${DIV}ℹ️ остановка проверочного контейнера..."
             echo "=== EXIT/OOM STATUS ==="
             docker inspect "$CONTAINER_ID" --format='ExitCode={{.State.ExitCode}} OOMKilled={{.State.OOMKilled}} Error={{.State.Error}} FinishedAt={{.State.FinishedAt}}' || true
             echo "=== ПОЛНЫЕ ЛОГИ КОНТЕЙНЕРА (stdout/stderr) ==="
             docker logs "$CONTAINER_ID" || true
-            
-            if [ "${{ matrix.service }}" == "ClearcoteBrowser" ]; then
-              echo "=== STRACE ЛОГ (ПОСЛЕДНИЕ СТРОКИ И СИГНАЛЫ) ==="
-              docker cp "$CONTAINER_ID":/tmp/clearcote-strace.log /tmp/clearcote-strace.log 2>/dev/null || true
-              if [ -f /tmp/clearcote-strace.log ]; then
-                echo "--- Сигналы и выходы процессов ---"
-                grep -E 'SIGSEGV|SIGILL|SIGBUS|SIGABRT|SIGCHLD|exit_group' /tmp/clearcote-strace.log | tail -n 30 || true
-                echo "--- Хвост системных вызовов перед падением ---"
-                tail -n 60 /tmp/clearcote-strace.log || true
-              else
-                echo "Файл /tmp/clearcote-strace.log не найден в контейнере"
-              fi
-            fi
-
             docker rm -f "$CONTAINER_ID" || true
+            echo -e "${DIV}"
           }
           trap cleanup EXIT
 
-          echo "Запуск полного интеграционного теста ($TEST_SCRIPT)..."
+          echo "ℹ️ запуск полного интеграционного теста ($TEST_SCRIPT)..."
           python3 -u "$TEST_SCRIPT"
-          echo "=== ВЕРИФИКАЦИЯ ПРОЙДЕНА УСПЕШНО ==="
+          echo "✅ ВЕРИФИКАЦИЯ ПРОЙДЕНА УСПЕШНО"
 
-      # 6. Публикуем ТОЛЬКО проверенный образ
-      - name: Push Minified Image to GHCR
+      - name: Extract Internal Browser Version & Push Tags
         run: |
-          docker push ${{ steps.names.outputs.tag }}
+          # извлечение версии библиотеки из готового сжатого контейнера
+          PKG_NAME=""
+          PKG_FILE="./${{ matrix.service }}/pypi_package.txt"
+          if [ -f "$PKG_FILE" ]; then
+            PKG_NAME=$(xargs < "$PKG_FILE")
+          fi
+          
+          INSTALLED_VER=$(docker run --rm ${{ steps.names.outputs.tag_latest }} python -c "import importlib.metadata; print(importlib.metadata.version('$PKG_NAME'))" 2>/dev/null || true)
+          IMAGE_BASE=$(echo "${{ env.REGISTRY }}/${{ github.repository }}/${{ steps.names.outputs.service_lower }}" | tr '[:upper:]' '[:lower:]')
+
+          # в :latest
+          docker push ${{ steps.names.outputs.tag_latest }}
+
+          # в версионный тег
+          if [ -n "$INSTALLED_VER" ]; then
+            echo "ℹ️ присвоен версионный тег: $IMAGE_BASE:$INSTALLED_VER"
+            docker tag ${{ steps.names.outputs.tag_latest }} "$IMAGE_BASE:$INSTALLED_VER"
+            docker push "$IMAGE_BASE:$INSTALLED_VER"
+          fi
