@@ -1,9 +1,7 @@
 """
 Извлекает первый порт из вывода `docker inspect --format '{{json .Config.ExposedPorts}}'`.
 
-Используется как в шаге Optimize Docker Image, так и в Verify Minified Image —
-раньше один и тот же однострочник был продублирован в обоих местах.
-
+Используется как в шаге Optimize Docker Image, так и в Verify Minified Image
 Использование:
     docker inspect <image> --format '{{json .Config.ExposedPorts}}' | python3 scripts/extract_port.py
 """

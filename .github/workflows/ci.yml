@@ -269,7 +269,13 @@ jobs:
             PKG_NAME=$(xargs < "$PKG_FILE")
           fi
           
-          INSTALLED_VER=$(docker run --rm ${{ steps.names.outputs.tag_latest }} python -c "import importlib.metadata; print(importlib.metadata.version('$PKG_NAME'))" 2>/dev/null || true)
+          INSTALLED_VER=""
+          if [ -n "$PKG_NAME" ]; then
+            echo "ℹ️ извлечение версии '$PKG_NAME' из fat-образа (${{ steps.names.outputs.service_lower }}:orig)..."
+            INSTALLED_VER=$(docker run -i --rm "${{ steps.names.outputs.service_lower }}:orig" python - "$PKG_NAME" < scripts/pkg_version.py 2>/dev/null | tr -d '\r\n' || true)
+          fi
+
+          echo "ℹ️ полученная версия пакета: '$INSTALLED_VER'"
           IMAGE_BASE=$(echo "${{ env.REGISTRY }}/${{ github.repository }}/${{ steps.names.outputs.service_lower }}" | tr '[:upper:]' '[:lower:]')
 
           # в :latest
@@ -277,7 +283,9 @@ jobs:
 
           # в версионный тег
           if [ -n "$INSTALLED_VER" ]; then
-            echo "ℹ️ присвоен версионный тег: $IMAGE_BASE:$INSTALLED_VER"
+            echo "🏷️ присвоен версионный тег: $IMAGE_BASE:$INSTALLED_VER"
             docker tag ${{ steps.names.outputs.tag_latest }} "$IMAGE_BASE:$INSTALLED_VER"
             docker push "$IMAGE_BASE:$INSTALLED_VER"
+          else
+            echo "⚠️ версия пакета не была определена, версионный тег не запушен."
           fi
