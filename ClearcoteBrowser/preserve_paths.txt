@@ -3,3 +3,4 @@
 # анализ SlimToolkit за время теста.
 
 /opt/xdg-cache
+/app/extensions

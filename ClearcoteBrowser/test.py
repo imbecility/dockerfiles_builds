@@ -22,7 +22,7 @@ def main() -> None:
         context = browser.contexts[0] if browser.contexts else browser.new_context()
         context.set_default_timeout(15000)
 
-        run_chromium_smoke_suite(context, expected_extensions_count=0)
+        run_chromium_smoke_suite(context, expected_extensions_count=7)
 
         page = context.new_page()
         try:

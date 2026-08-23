@@ -93,6 +93,19 @@ if _wv_on:
         print("[clearcote] widevine unavailable (continuing without DRM): %r" % exc, flush=True)
 
 args = fingerprint_args(opts)
+
+# Extensions -- CC_EXTENSIONS is a comma-separated list of unpacked extension
+# directories (each containing a manifest.json). --load-extension alone is
+# silently ignored under automation; --disable-extensions-except must be set
+# alongside it, or the extension never appears. See
+# https://www.clearcotelabs.com/docs/extensions
+_extensions = [d.strip() for d in os.environ.get("CC_EXTENSIONS", "").split(",") if d.strip()]
+extension_args = []
+if _extensions:
+    _joined = ",".join(_extensions)
+    extension_args = [f"--load-extension={_joined}", f"--disable-extensions-except={_joined}"]
+    print(f"[clearcote] extensions: {len(_extensions)} loaded", flush=True)
+
 # Web Bluetooth is runtime-disabled on Linux only, so a Linux container serving a desktop persona
 # reports navigator.usb/serial/hid but NOT navigator.bluetooth -- a combination no real desktop
 # Chrome produces. web_bluetooth_args() restores it (and is empty on non-Linux). The SDK's launch()
@@ -134,7 +147,7 @@ cmd = [
     "--use-gl=angle", "--use-angle=swiftshader", "--enable-unsafe-swiftshader",
     f"--remote-debugging-port={internal}", "--remote-allow-origins=*",
     "--user-data-dir=%s" % PROFILE_DIR,
-] + mode_args + args + web_bluetooth_args() + extra
+] + mode_args + args + web_bluetooth_args() + extension_args + extra
 
 env = dict(os.environ)
 env.update(linux_font_env(exe))  # point FONTCONFIG_FILE at the bundled Windows-font clones
