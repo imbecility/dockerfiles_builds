@@ -54,7 +54,7 @@ RUN echo "deb http://deb.debian.org/debian trixie contrib" >> /etc/apt/sources.l
 COPY --chmod=755 <<-"EOF" /app/start.sh
 #!/bin/bash
 set -e
-bash /app/start_dns.sh
+sudo bash /app/start_dns.sh
 touch /.dockerenv
 export HTTPX_LOG_LEVEL=warning
 export DISPLAY=:99

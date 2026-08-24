@@ -21,7 +21,7 @@ def main() -> None:
 
         context.set_default_timeout(30000)
         page = context.new_page()
-        page.goto("https://ya.ru", wait_until="domcontentloaded")
+        page.goto("https://google.com", wait_until="domcontentloaded")
         print(f'заголовок страницы: "{page.title()}"')
         page.close()
 

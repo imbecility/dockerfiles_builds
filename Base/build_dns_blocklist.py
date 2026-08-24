@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 import argparse
 from pathlib import Path
 import httpx
@@ -6,7 +5,8 @@ import httpx
 HEADERS = {
     "User-Agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
 }
-GUARANTEED_BLOCKS = {"doubleclick.net", "mc.yandex.ru"}
+# для тестов:
+GUARANTEED_BLOCKS = {"ad.doubleclick.net", "mc.yandex.ru"}
 
 
 def load_lines(file_path: Path) -> list[str]:
