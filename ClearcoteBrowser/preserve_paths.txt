@@ -4,9 +4,8 @@
 
 /opt/xdg-cache
 /app/extensions
-
 /usr/sbin/dnsmasq
-/usr/sbin/gosu
+/usr/bin/setpriv
 /etc/dnsmasq.conf
 /etc/dnsmasq.hosts
 /app/start_dns.sh

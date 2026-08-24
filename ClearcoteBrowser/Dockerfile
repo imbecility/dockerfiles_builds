@@ -41,10 +41,11 @@ COPY --chmod=755 <<-"EOF" /app/start.sh
 source /app/start_dns.sh
 
 # Отключаем DoH, чтобы Chrome не обходил локальный dnsmasq
-export CC_EXTRA_ARGS="--disable-features=DnsOverHttpsUpgrade,DnsOverHttps --disable-renderer-backgrounding --disable-background-timer-throttling --disable-backgrounding-occluded-windows ${CC_EXTRA_ARGS}"
+export CC_EXTRA_ARGS="--disable-features=DnsOverHttpsUpgrade,DnsOverHttps ${CC_EXTRA_ARGS}"
 
-# Запускаем от имени непривилегированного пользователя cc
-exec gosu cc /app/.venv/bin/python /app/serve.py
+# Нативный setpriv гарантированно сбрасывает Saved UID,
+# из-за которого Chromium крашился в process_linux.cc с EPERM (13).
+exec setpriv --reuid=cc --regid=cc --init-groups --clear-groups /app/.venv/bin/python /app/serve.py
 EOF
 
 VOLUME ["/opt/xdg-cache"]

@@ -6,7 +6,7 @@ ENV VIRTUAL_ENV=/app/.venv \
 COPY --from=ghcr.io/astral-sh/uv:latest /uv /uvx /bin/
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    dnsmasq curl ca-certificates procps gosu xvfb x11-utils xdotool \
+    dnsmasq curl ca-certificates procps util-linux xvfb x11-utils xdotool \
     fonts-liberation fonts-noto-color-emoji && \
     mkdir -p /etc/dnsmasq.d /app/dns_sinkhole && \
     uv venv /app/.venv --python 3.14 && \

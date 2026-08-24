@@ -7,4 +7,3 @@
 # сразу после старта CDP.
 
 --shm-size=1g
---cap-add=SYS_NICE
