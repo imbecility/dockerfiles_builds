@@ -5,7 +5,11 @@
 /opt/xdg-cache
 /app/extensions
 /usr/sbin/dnsmasq
-/usr/bin/setpriv
+/usr/bin/sudo
+/etc/sudoers
+/etc/sudoers.d
+/etc/pam.d
+/lib/x86_64-linux-gnu/security
 /etc/dnsmasq.conf
 /etc/dnsmasq.hosts
 /app/start_dns.sh

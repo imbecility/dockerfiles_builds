@@ -7,7 +7,6 @@ ENV XDG_CACHE_HOME=/opt/xdg-cache \
 WORKDIR /app
 COPY serve.py /app/serve.py
 
-# Только Chromium рантайм-либы и доп. шрифты
 RUN apt-get update && apt-get install -y --no-install-recommends \
       xz-utils socat unzip \
       libnss3 libnspr4 libgbm1 libasound2 libatk1.0-0 libatk-bridge2.0-0 libcups2 libdrm2 \
@@ -38,18 +37,19 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 COPY --chmod=755 <<-"EOF" /app/start.sh
 #!/bin/bash
-source /app/start_dns.sh
 
-# Отключаем DoH, чтобы Chrome не обходил локальный dnsmasq
+# Запуск DNS от имени root
+sudo bash /app/start_dns.sh
+
 export CC_EXTRA_ARGS="--disable-features=DnsOverHttpsUpgrade,DnsOverHttps ${CC_EXTRA_ARGS}"
 
-# Нативный setpriv гарантированно сбрасывает Saved UID,
-# из-за которого Chromium крашился в process_linux.cc с EPERM (13).
-exec setpriv --reuid=cc --regid=cc --init-groups --clear-groups /app/.venv/bin/python /app/serve.py
+# Прямой запуск от имени текущего юзера (cc)
+exec /app/.venv/bin/python /app/serve.py
 EOF
 
 VOLUME ["/opt/xdg-cache"]
 EXPOSE 9222
+USER cc
 # Персона через env: CC_PLATFORM (windows|linux|macos|android), CC_FINGERPRINT, CC_BRAND,
 # CC_ACCEPT_LANGUAGE, CC_TIMEZONE, CC_HARDWARE_CONCURRENCY, CC_GPU_VENDOR/RENDERER, CC_TLS_PROFILE.
-CMD ["/app/.venv/bin/python", "/app/serve.py"]
+CMD ["/bin/bash", "/app/start.sh"]
