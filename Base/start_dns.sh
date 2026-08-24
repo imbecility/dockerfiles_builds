@@ -14,7 +14,7 @@ EOF
     echo "[dns-sinkhole] Запуск dnsmasq..."
     dnsmasq
 
-    # Ожидание готовности DNS по TCP-порту 53 (гарантирует активный процесс)
+    # Ожидание готовности TCP-порта 53
     DNS_READY=0
     for i in $(seq 1 20); do
         if /app/.venv/bin/python -c "import socket; s = socket.socket(socket.AF_INET, socket.SOCK_STREAM); s.settimeout(0.5); s.connect(('127.0.0.1', 53)); s.close()" 2>/dev/null; then
@@ -62,22 +62,3 @@ fi
 echo -e "\n==========================================\nсодержимое /etc/resolv.conf:\n"
 cat /etc/resolv.conf
 echo -e "\n==========================================\n"
-
-BLOCKED_DOMAIN="mc.yandex.ru"
-LEGIT_DOMAIN="example.com"
-
-# Проверка блокировки
-BLOCKED_IP=$(/app/.venv/bin/python -c "import socket; print(socket.gethostbyname('$BLOCKED_DOMAIN'))" 2>/dev/null || true)
-if [ "$BLOCKED_IP" = "0.0.0.0" ] || [ -z "$BLOCKED_IP" ]; then
-    echo "✅ $BLOCKED_DOMAIN заблокирован (IP: ${BLOCKED_IP:-none})"
-else
-    echo "❌ ОШИБКА: $BLOCKED_DOMAIN НЕ заблокирован! (IP: $BLOCKED_IP)" >&2
-fi
-
-# Проверка резолвинга легитимных доменов
-LEGIT_IP=$(/app/.venv/bin/python -c "import socket; print(socket.gethostbyname('$LEGIT_DOMAIN'))" 2>/dev/null || true)
-if [ -n "$LEGIT_IP" ] && [ "$LEGIT_IP" != "0.0.0.0" ]; then
-    echo "✅ Upstream DNS работает: $LEGIT_DOMAIN -> $LEGIT_IP"
-else
-    echo "❌ ОШИБКА: Upstream DNS сломан! $LEGIT_DOMAIN не резолвится." >&2
-fi

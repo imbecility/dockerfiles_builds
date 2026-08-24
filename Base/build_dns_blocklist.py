@@ -5,7 +5,6 @@ import httpx
 HEADERS = {
     "User-Agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
 }
-# для тестов:
 GUARANTEED_BLOCKS = {"ad.doubleclick.net", "mc.yandex.ru"}
 
 
@@ -13,7 +12,6 @@ def is_valid_domain(domain: str) -> bool:
     if not domain or len(domain) > 253 or "." not in domain:
         return False
     labels = domain.split(".")
-    # Исключаем чистые IP-адреса (например, 0.0.0.0, 127.0.0.1, 0.0.0)
     if all(label.isdigit() for label in labels):
         return False
     for label in labels:
@@ -21,7 +19,7 @@ def is_valid_domain(domain: str) -> bool:
             return False
         if not all(c.isalnum() or c == "-" for c in label):
             return False
-    return any(c.isalpha() for c in labels[-1])
+    return True
 
 
 def load_lines(file_path: Path) -> list[str]:
@@ -83,18 +81,11 @@ def main():
     args.output.parent.mkdir(parents=True, exist_ok=True)
     with open(args.output, "w", encoding="utf-8") as f:
         for domain in sorted(blocked_domains):
-            f.write(f"address=/{domain}/0.0.0.0\n")
-            f.write(f"address=/{domain}/::\n")
+            # Формат address=/domain/ возвращает NXDOMAIN для всех типов запросов (A/AAAA)
+            f.write(f"address=/{domain}/\n")
 
     print("=" * 42)
-    print(f"Записано {len(blocked_domains)} уникальных заблокированных доменов.")
-    print("="*42)
-    print("записано в файл:")
-    with open(args.output, "r", encoding="utf-8") as f:
-        for i, line in enumerate(f):
-            if i == 10:
-                break
-            print(line, end="")
+    print(f"Записано {len(blocked_domains)} уникальных заблокированных доменов в {args.output}")
     print("=" * 42)
 
 

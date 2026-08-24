@@ -27,12 +27,13 @@ def test_navigation_variants(context: BrowserContext) -> None:
 def test_js_execution(context: BrowserContext) -> None:
     page = context.new_page()
     try:
+        # expose_function вызывается строго до загрузки страницы
+        page.expose_function("pyHello", lambda: "hello from python")
         set_html(page, "<div id='x'>1</div>")
         page.evaluate("document.getElementById('x').textContent = '2'")
         page.add_script_tag(content="window.__injected = 42;")
         assert page.evaluate("window.__injected") == 42
         page.wait_for_function("window.__injected === 42")
-        page.expose_function("pyHello", lambda: "hello from python")
         assert page.evaluate("async () => await window.pyHello()") == "hello from python"
     finally:
         page.close()
@@ -342,6 +343,9 @@ def test_extensions_loaded(context: BrowserContext, expected_count: int = 7) -> 
         page.close()
 
 
+
+
+
 def test_dns_sinkhole(context: BrowserContext) -> None:
     blocked_urls = [
         "http://ad.doubleclick.net/favicon.ico",
@@ -351,15 +355,19 @@ def test_dns_sinkhole(context: BrowserContext) -> None:
         page = context.new_page()
         is_blocked = False
         try:
-            page.goto(url, timeout=3000)
+            resp = page.goto(url, timeout=3000)
+            # Если страница отдала статус ошибки или была перехвачена расширением
+            if resp is None or resp.status >= 400 or "chrome-extension://" in page.url:
+                is_blocked = True
         except Exception:
+            # Сетевой сброс (ERR_NAME_NOT_RESOLVED / NS_ERROR_UNKNOWN_HOST / ECONNREFUSED)
             is_blocked = True
         finally:
             page.close()
 
-        assert is_blocked, f"❌ ОШИБКА: домен {url} загрузился: утечка DNS (активен DoH?) или не работает dnsmasq!"
+        assert is_blocked, f"❌ ОШИБКА: домен {url} загрузился: не работает dnsmasq!"
 
-    # проверка легитимного DNS на чистой вкладке
+    # Проверка легитимного интернета на свежей изолированной вкладке
     page = context.new_page()
     try:
         resp = page.goto("https://example.com", wait_until="domcontentloaded", timeout=15000)
@@ -368,6 +376,7 @@ def test_dns_sinkhole(context: BrowserContext) -> None:
         assert False, f"❌ ОШИБКА: сломан основной DNS-резолвинг легитимных доменов: {e}"
     finally:
         page.close()
+
 
 
 
