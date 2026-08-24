@@ -41,7 +41,7 @@ COPY --chmod=755 <<-"EOF" /app/start.sh
 source /app/start_dns.sh
 
 # Отключаем DoH, чтобы Chrome не обходил локальный dnsmasq
-export CC_EXTRA_ARGS="--disable-features=DnsOverHttpsUpgrade,DnsOverHttps ${CC_EXTRA_ARGS}"
+export CC_EXTRA_ARGS="--disable-features=DnsOverHttpsUpgrade,DnsOverHttps --disable-renderer-backgrounding --disable-backgrounding-occluded-windows ${CC_EXTRA_ARGS}"
 
 # Запускаем от имени непривилегированного пользователя cc
 exec gosu cc /app/.venv/bin/python /app/serve.py
