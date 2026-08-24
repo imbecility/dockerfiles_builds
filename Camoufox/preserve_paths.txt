@@ -9,3 +9,11 @@
 # /home/name/.cache/camoufox
 /root/.cache/camoufox
 /root/.camoufox
+
+/usr/sbin/dnsmasq
+/usr/sbin/gosu
+/etc/dnsmasq.conf
+/etc/dnsmasq.hosts
+/app/start_dns.sh
+/app/build_dns_blocklist.py
+/app/dns_sinkhole
