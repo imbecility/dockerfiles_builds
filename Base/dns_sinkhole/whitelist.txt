@@ -28,3 +28,9 @@ ya.ru
 yandex.com
 google.com
 bing.com
+
+# --- GeoIP & API ---
+api.ipify.org
+ipify.org
+lumtest.com
+ip-api.com

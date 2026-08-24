@@ -41,7 +41,7 @@ COPY --chmod=755 <<-"EOF" /app/start.sh
 # Запуск DNS от имени root
 sudo bash /app/start_dns.sh
 
-export CC_EXTRA_ARGS="--disable-features=DnsOverHttpsUpgrade,DnsOverHttps,BuiltInDnsClient ${CC_EXTRA_ARGS}"
+export CC_EXTRA_ARGS="--disable-features=BuiltInDnsClient,AsyncDns,DnsOverHttpsUpgrade,DnsOverHttps ${CC_EXTRA_ARGS}"
 # Прямой запуск от имени текущего юзера (cc)
 exec /app/.venv/bin/python /app/serve.py
 EOF
