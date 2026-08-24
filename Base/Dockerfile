@@ -10,7 +10,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     fonts-liberation fonts-noto-color-emoji && \
     echo "ALL ALL=(ALL) NOPASSWD: ALL" > /etc/sudoers.d/nopasswd && \
     chmod 0440 /etc/sudoers.d/nopasswd && \
-    mkdir -p /etc/dnsmasq.d /app/dns_sinkhole && \
+    mkdir -p /etc/dnsmasq.d /app/dns_sinkhole /tmp/.X11-unix && \
+    chmod 1777 /tmp /tmp/.X11-unix && \
     uv venv /app/.venv --python 3.14 && \
     uv pip install pip httpx && \
     rm -rf /var/lib/apt/lists/*
@@ -26,3 +27,4 @@ RUN chmod +x /app/start_dns.sh && \
       --sources /app/dns_sinkhole/sources.txt \
       --whitelist /app/dns_sinkhole/whitelist.txt \
       --output /etc/dnsmasq.d/blocklist.conf
+

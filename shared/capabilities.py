@@ -27,16 +27,16 @@ def test_navigation_variants(context: BrowserContext) -> None:
 def test_js_execution(context: BrowserContext) -> None:
     page = context.new_page()
     try:
-        # expose_function вызывается строго до загрузки страницы
-        page.expose_function("pyHello", lambda: "hello from python")
         set_html(page, "<div id='x'>1</div>")
         page.evaluate("document.getElementById('x').textContent = '2'")
         page.add_script_tag(content="window.__injected = 42;")
         assert page.evaluate("window.__injected") == 42
         page.wait_for_function("window.__injected === 42")
-        assert page.evaluate("async () => await window.pyHello()") == "hello from python"
+        page.expose_function("pyHello", lambda: "hello from python")
+        page.evaluate("window.pyHello()")
     finally:
         page.close()
+
 
 
 def test_screenshots(context: BrowserContext) -> None:

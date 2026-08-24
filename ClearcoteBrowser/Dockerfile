@@ -33,6 +33,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     rm -f /tmp/ext.zip && \
     useradd -m -u 10001 cc && chown -R cc /opt/xdg-cache /app && \
     chmod 755 /root && chmod -R a+rX /root/.local && \
+    chmod 1777 /tmp /tmp/.X11-unix && \
     rm -rf /var/lib/apt/lists/*
 
 COPY --chmod=755 <<-"EOF" /app/start.sh
