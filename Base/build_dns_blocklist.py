@@ -1,10 +1,12 @@
-#!/usr/bin/env python3
 import argparse
 import re
 from pathlib import Path
 import httpx
 
 DOMAIN_REGEX = re.compile(r"^(?:0\.0\.0\.0|127\.0\.0\.1|\|\|)?\s*([a-zA-Z0-9.-]+\.[a-zA-Z]{2,})")
+HEADERS = {
+    "User-Agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/146.0.0.0 Safari/537.36"
+}
 
 def load_lines(file_path: Path) -> list[str]:
     if not file_path.exists():
@@ -35,13 +37,13 @@ def main():
 
     blocked_domains = set()
 
-    with httpx.Client(timeout=30.0, follow_redirects=True) as client:
+    with httpx.Client(timeout=30.0, follow_redirects=True, headers=HEADERS) as client:
         for url in sources:
             try:
                 print(f"  → Загрузка: {url}")
                 r = client.get(url)
                 if r.status_code != 200:
-                    print(f"  [!] HTTP {r.status_code} при загрузке {url}")
+                    print(f"  [!] Пропуск {url}: HTTP {r.status_code}")
                     continue
 
                 for line in r.text.splitlines():
@@ -56,7 +58,7 @@ def main():
             except Exception as e:
                 print(f"  [!] Ошибка загрузки {url}: {e}")
 
-    print(f"[*] Итого собрано уникальных блокируемых доменов: {len(blocked_domains)}")
+    print(f"[*] Собрано уникальных доменов: {len(blocked_domains)}")
 
     # Запись в формате /etc/hosts (0.0.0.0 domain)
     args.output.parent.mkdir(parents=True, exist_ok=True)

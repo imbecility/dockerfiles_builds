@@ -75,15 +75,25 @@ def ghcr_tag_exists(package_name: str, target_tag: str) -> bool:
 
 def main() -> None:
     services_to_build: list[str] = []
-    # Сразу получаем чистый список строк: ["Camoufox", "ClearcoteBrowser", "CloakBrowser"]
-    available_dirs = sorted([p.parent.name for p in Path(".").glob("*/Dockerfile") if p.parent.name != "."])
+    should_build_base = False
+
+    # доступные браузерные сервисы
+    all_dirs = sorted([p.parent.name for p in Path(".").glob("*/Dockerfile") if p.parent.name != "."])
+    # Base из матрицы исключается
+    browser_dirs = [d for d in all_dirs if d != "Base"]
 
     div = "\n" + "=" * 42 + "\n"
     print(f"{div}🚧 режим запуска: {event} 🚧{div}")
 
+    # проверка существует ли уже base:latest в GHCR
+    base_exists = ghcr_tag_exists("base", "latest")
+    if not base_exists:
+        print("ℹ️ базовый образ base:latest не найден в GHCR: Base отправлен на сборку")
+        should_build_base = True
+
     if event == "schedule":
         print("ℹ️ проверка новых релизов в апстрим PyPI...")
-        for dir_name in available_dirs:
+        for dir_name in browser_dirs:
             pypi_pkg = get_pypi_package_name(dir_name)
             if not pypi_pkg:
                 continue
@@ -104,9 +114,14 @@ def main() -> None:
 
     elif event == "workflow_dispatch":
         if input_service and input_service != "all":
-            services_to_build = [input_service]
+            if input_service == "Base":
+                should_build_base = True
+                services_to_build = browser_dirs
+            else:
+                services_to_build = [input_service]
         else:
-            services_to_build = available_dirs  # Это теперь список str, json.dumps() отработает штатно
+            should_build_base = True
+            services_to_build = browser_dirs
 
     else:  # push
         before = getenv("BEFORE", "")
@@ -122,15 +137,22 @@ def main() -> None:
             print(f"Ошибка git diff: {e}")
             diff_files = ""
 
-        for dir_name in available_dirs:
-            if f"{dir_name}/" in diff_files or "shared/" in diff_files or "scripts/" in diff_files:
-                services_to_build.append(dir_name)
+        # если Base изменился: пересборка Base и всех браузеров
+        if "Base/" in diff_files:
+            print("ℹ️ обнаружены изменения в Base: пересборка Base и всех браузеров.")
+            should_build_base = True
+            services_to_build = browser_dirs
+        else:
+            for dir_name in browser_dirs:
+                if f"{dir_name}/" in diff_files or "shared/" in diff_files or "scripts/" in diff_files:
+                    services_to_build.append(dir_name)
 
-    print(f"{div}ИТОГОВЫЙ СПИСОК ДЛЯ СБОРКИ\n{services_to_build}{div}")
+    print(f"{div}ФЛАГ СБОРКИ BASE: {should_build_base}")
+    print(f"ИТОГОВЫЙ СПИСОК БРАУЗЕРОВ ДЛЯ СБОРКИ:\n{services_to_build}{div}")
 
-    matrix_json = dumps(services_to_build)
     with open(environ["GITHUB_OUTPUT"], "a", encoding="utf-8") as f:
-        f.write(f"matrix={matrix_json}\n")
+        f.write(f"matrix={dumps(services_to_build)}\n")
+        f.write(f"should_build_base={'true' if should_build_base else 'false'}\n")
 
 
 if __name__ == "__main__":
