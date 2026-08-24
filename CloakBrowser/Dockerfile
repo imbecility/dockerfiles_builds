@@ -79,7 +79,6 @@ echo -e "\n==================================\nstarting chromium cdp server...\n
 exec /app/.venv/bin/cloakserve \
     --port="${PORT}" \
     --host=0.0.0.0 \
-    --disable-features=BuiltInDnsClient,AsyncDns,DnsOverHttpsUpgrade,DnsOverHttps \
     --log-level=3 \
     --no-sandbox \
     --disable-setuid-sandbox \

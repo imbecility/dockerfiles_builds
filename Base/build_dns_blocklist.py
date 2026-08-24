@@ -6,7 +6,7 @@ import httpx
 HEADERS = {
     "User-Agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
 }
-GUARANTEED_BLOCKS = {"doubleclick.net", "ad.doubleclick.net", "mc.yandex.ru"}
+GUARANTEED_BLOCKS = {"doubleclick.net", "mc.yandex.ru"}
 
 
 def load_lines(file_path: Path) -> list[str]:
@@ -68,8 +68,8 @@ def main():
     args.output.parent.mkdir(parents=True, exist_ok=True)
     with open(args.output, "w", encoding="utf-8") as f:
         for domain in sorted(blocked_domains):
-            f.write(f"0.0.0.0 {domain}\n")
-            f.write(f":: {domain}\n")
+            f.write(f"address=/{domain}/0.0.0.0\n")
+            f.write(f"address=/{domain}/::\n")
 
     print("="*42)
     print("записано в файл:")
