@@ -1,0 +1,30 @@
+# --- Captchas & Bot-Detection ---
+recaptcha.net
+hcaptcha.com
+challenges.cloudflare.com
+arkoselabs.com
+funcaptcha.com
+geetest.com
+turnstile.com
+
+# --- Google APIs / Fonts / Static ---
+fonts.gstatic.com
+fonts.googleapis.com
+ajax.googleapis.com
+www.gstatic.com
+play.google.com
+
+# --- CDNs ---
+cloudflare.com
+cdnjs.cloudflare.com
+jsdelivr.net
+unpkg.com
+fastly.net
+akamaihd.net
+
+# --- Search Engines & Anti-detect verifications ---
+yandex.ru
+ya.ru
+yandex.com
+google.com
+bing.com

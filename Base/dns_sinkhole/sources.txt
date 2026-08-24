@@ -1,0 +1,8 @@
+# StevenBlack Unified Hosts (Adware + Malware)
+https://raw.githubusercontent.com/StevenBlack/hosts/master/hosts
+
+# Peter Lowe's Ad and tracking server list
+https://pgl.yoyo.org/adservers/serverlist.php?hostformat=hosts&showintro=0&mimetype=plaintext
+
+# OISD Basic (минимальный безопасный набор без ложных срабатываний)
+https://small.oisd.nl/domainswild
