@@ -42,10 +42,24 @@ set -e
 # Запуск DNS от имени root
 sudo bash /app/start_dns.sh
 
-# Прямой запуск от имени текущего юзера (cc)
+export DISPLAY=:99
+Xvfb :99 -screen 0 1920x1080x24 -nolisten tcp -ac &
+
+for i in $(seq 1 20); do
+    if xdpyinfo -display :99 >/dev/null 2>&1; then
+        echo "Xvfb готов (попытка $i)"
+        break
+    fi
+    sleep 0.5
+done
+if ! xdpyinfo -display :99 >/dev/null 2>&1; then
+    echo "Xvfb не поднялся за отведенное время!" >&2
+    exit 1
+fi
+
+# Прямой запуск от имени cc
 exec /app/.venv/bin/python /app/serve.py
 EOF
-
 
 VOLUME ["/opt/xdg-cache"]
 EXPOSE 9222

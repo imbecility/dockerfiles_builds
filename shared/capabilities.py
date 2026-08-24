@@ -23,7 +23,6 @@ def test_navigation_variants(context: BrowserContext) -> None:
     finally:
         page.close()
 
-
 def test_js_execution(context: BrowserContext) -> None:
     page = context.new_page()
     try:
@@ -33,9 +32,10 @@ def test_js_execution(context: BrowserContext) -> None:
         assert page.evaluate("window.__injected") == 42
         page.wait_for_function("window.__injected === 42")
         page.expose_function("pyHello", lambda: "hello from python")
-        page.evaluate("window.pyHello()")
+        assert page.evaluate("async () => await window.pyHello()") == "hello from python"
     finally:
         page.close()
+
 
 
 
