@@ -58,13 +58,14 @@ def main():
 
     print(f"[*] Собрано уникальных доменов: {len(blocked_domains)}")
 
-    # Запись в нативном формате dnsmasq (address=/domain/0.0.0.0) для Wildcard-блокировки
     args.output.parent.mkdir(parents=True, exist_ok=True)
     with open(args.output, "w", encoding="utf-8") as f:
         for domain in sorted(blocked_domains):
-            # Жестко блокируем и IPv4, и IPv6 запросы
-            f.write(f"address=/{domain}/0.0.0.0\n")
-            f.write(f"address=/{domain}/::\n")
+            # Синтаксис address=/domain/ (без IP) возвращает NXDOMAIN
+            f.write(f"address=/{domain}/\n")
+
+    print(f"[✓] Файл успешно сохранен в: {args.output}")
+
 
 if __name__ == "__main__":
     main()
