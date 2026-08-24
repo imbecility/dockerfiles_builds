@@ -7,18 +7,15 @@ REFRESH_HOURS="${DNS_BLOCKLIST_REFRESH_HOURS:-6}"
 
 if [ "${DNS_SINKHOLE_DISABLE:-0}" != "1" ]; then
     echo "[dns-sinkhole] Перенаправление /etc/resolv.conf на 127.0.0.1..."
-    cat <<EOF > /etc/resolv.conf
-nameserver 127.0.0.1
-options timeout:1 attempts:1
-EOF
+    echo -e "nameserver 127.0.0.1\noptions timeout:1 attempts:1" | tee /etc/resolv.conf > /dev/null
 
     echo "[dns-sinkhole] Запуск dnsmasq..."
     dnsmasq --conf-file="$DNSMASQ_CONF"
 
-    # Ожидание готовности DNS
+    # Строгая TCP-проверка: если dnsmasq упал из-за ошибки в конфиге, скрипт зависнет и упадет
     for i in $(seq 1 20); do
-        if python3 -c "import socket; s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM); s.connect(('127.0.0.1', 53)); s.close()" 2>/dev/null; then
-            echo "[dns-sinkhole] dnsmasq успешно запущен"
+        if python3 -c "import socket; s = socket.socket(socket.AF_INET, socket.SOCK_STREAM); s.settimeout(1.0); s.connect(('127.0.0.1', 53)); s.close()" 2>/dev/null; then
+            echo "[dns-sinkhole] dnsmasq (TCP 53) успешно запущен и готов"
             break
         fi
         sleep 0.2
@@ -49,8 +46,5 @@ EOF
     fi
 else
     echo "[dns-sinkhole] Отключено (DNS_SINKHOLE_DISABLE=1)"
-    cat <<EOF > /etc/resolv.conf
-nameserver 1.1.1.1
-nameserver 1.0.0.1
-EOF
+    echo -e "nameserver 1.1.1.1\nnameserver 1.0.0.1" | tee /etc/resolv.conf > /dev/null
 fi
