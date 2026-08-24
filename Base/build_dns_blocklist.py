@@ -1,4 +1,4 @@
-# !/usr/bin/env python3
+#!/usr/bin/env python3
 import argparse
 from pathlib import Path
 import httpx
@@ -40,21 +40,24 @@ def main():
         for url in sources:
             try:
                 r = client.get(url)
-                if r.status_code != 200: continue
+                if r.status_code != 200:
+                    continue
 
                 for line in r.text.splitlines():
                     line = line.strip().lower()
-                    if not line or line.startswith(("#", "!", ";")): continue
+                    if not line or line.startswith(("#", "!", ";")):
+                        continue
 
-                    # Парсинг 0.0.0.0, 127.0.0.1, *. и ||
                     parts = line.split()
                     if len(parts) > 1 and parts[0] in ("0.0.0.0", "127.0.0.1"):
                         domain = parts[1]
                     else:
                         domain = parts[0]
 
-                    if domain.startswith("*."): domain = domain[2:]
-                    if domain.startswith("||"): domain = domain[2:]
+                    if domain.startswith("*."):
+                        domain = domain[2:]
+                    if domain.startswith("||"):
+                        domain = domain[2:]
                     domain = domain.split("^")[0]
 
                     if "." in domain and not is_whitelisted(domain, whitelist):
@@ -65,8 +68,8 @@ def main():
     args.output.parent.mkdir(parents=True, exist_ok=True)
     with open(args.output, "w", encoding="utf-8") as f:
         for domain in sorted(blocked_domains):
-            # address=/domain.com/ (без IP) возвращает браузеру NXDOMAIN (мгновенный отказ)
-            f.write(f"address=/{domain}/\n")
+            f.write(f"address=/{domain}/0.0.0.0\n")
+            f.write(f"address=/{domain}/::\n")
 
 
 if __name__ == "__main__":

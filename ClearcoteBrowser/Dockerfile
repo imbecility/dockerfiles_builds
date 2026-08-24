@@ -37,9 +37,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 COPY --chmod=755 <<-"EOF" /app/start.sh
 #!/bin/bash
-
-# Запуск DNS от имени root
-sudo bash /app/start_dns.sh
+set -e
+bash /app/start_dns.sh
 
 export CC_EXTRA_ARGS="--disable-features=BuiltInDnsClient,AsyncDns,DnsOverHttpsUpgrade,DnsOverHttps ${CC_EXTRA_ARGS}"
 # Прямой запуск от имени текущего юзера (cc)
