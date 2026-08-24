@@ -178,6 +178,8 @@ jobs:
           push: false
           load: true
           tags: ${{ steps.names.outputs.service_lower }}:orig
+          build-args: |
+            BASE_IMAGE=${{ env.REGISTRY }}/${{ github.repository }}/base:latest
 
       # Синхронизация версии playwright на раннере с той, что реально запечена в образе.
       # Playwright-server (Camoufox) жёстко проверяет совпадение версий клиент/сервер: расхождение = "428 Precondition Required".
