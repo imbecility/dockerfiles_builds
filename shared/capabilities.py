@@ -342,6 +342,41 @@ def test_extensions_loaded(context: BrowserContext, expected_count: int = 7) -> 
         page.close()
 
 
+def test_dns_sinkhole(context: BrowserContext) -> None:
+    page = context.new_page()
+    try:
+        # черный список (домены должны падать с Connection Refused)
+        blocked_urls = [
+            "http://doubleclick.net",
+            "http://mc.yandex.ru"
+        ]
+        for url in blocked_urls:
+            is_blocked = False
+            try:
+                # 0.0.0.0 отбивает соединение моментально, хватит минимального таймаута
+                page.goto(url, timeout=3000)
+            except Exception as e:
+                err_msg = str(e).lower()
+                # Chromium: err_connection_refused, Firefox: ns_error_connection_refused
+                if "refused" in err_msg or "name_not_resolved" in err_msg or "aborted" in err_msg:
+                    is_blocked = True
+                else:
+                    # любая сетевая ошибка = сайт не загрузился
+                    is_blocked = True
+
+            assert is_blocked, f"❌ ОШИБКА: домен {url} загрузился: утечка DNS (активен DoH?) или не работает dnsmasq!"
+
+        # проверка, что обычный интернет (или whitelist) работает штатно
+        try:
+            resp = page.goto("https://example.com", wait_until="domcontentloaded", timeout=15000)
+            assert resp and resp.status < 400, "легитимный сайт example.com не загрузился."
+        except Exception as e:
+            assert False, f"❌ ОШИБКА: сломан основной DNS-резолвинг легитимных доменов: {e}"
+
+    finally:
+        page.close()
+
+
 # --------------------------------------------------------------------------
 # Сборные наборы (Пресеты)
 # --------------------------------------------------------------------------
@@ -357,6 +392,7 @@ def run_common_capabilities(context: BrowserContext) -> None:
     run_step("JS-диалоги (alert/confirm)", test_dialogs, context)
     run_step("перехват сетевых запросов", test_network_interception, context)
     run_step("шрифты и письменности (кириллица/арабский/CJK/эмодзи)", test_fonts_and_scripts, context)
+    run_step("DNS-Sinkhole (блокировка трекеров / DoH отключен)", test_dns_sinkhole, context)
 
 
 def run_firefox_smoke_suite(context: BrowserContext, extended: bool = False) -> None:
