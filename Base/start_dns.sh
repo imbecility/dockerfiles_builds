@@ -12,18 +12,23 @@ options timeout:1 attempts:1
 EOF
 
     echo "[dns-sinkhole] Запуск dnsmasq..."
-    # БЕЗ --conf-file: читает /etc/dnsmasq.conf по умолчанию,
-    # который содержит no-resolv, server=1.1.1.1 и conf-dir с блоклистом
     dnsmasq
 
-    # Ожидание готовности DNS
+    # Ожидание готовности DNS по TCP-порту 53 (гарантирует активный процесс)
+    DNS_READY=0
     for i in $(seq 1 20); do
-        if /app/.venv/bin/python -c "import socket; s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM); s.connect(('127.0.0.1', 53)); s.close()" 2>/dev/null; then
-            echo "[dns-sinkhole] dnsmasq успешно запущен"
+        if /app/.venv/bin/python -c "import socket; s = socket.socket(socket.AF_INET, socket.SOCK_STREAM); s.settimeout(0.5); s.connect(('127.0.0.1', 53)); s.close()" 2>/dev/null; then
+            echo "[dns-sinkhole] dnsmasq успешно запущен и слушает порт 53"
+            DNS_READY=1
             break
         fi
         sleep 0.2
     done
+
+    if [ "$DNS_READY" -ne 1 ]; then
+        echo "❌ ОШИБКА: dnsmasq не смог запуститься на 127.0.0.1:53!" >&2
+        exit 1
+    fi
 
     # Фоновое обновление базы
     if [ "$REFRESH_HOURS" -gt 0 ] 2>/dev/null; then
@@ -36,8 +41,6 @@ EOF
                     --whitelist /app/dns_sinkhole/whitelist.txt \
                     --output "${BLOCKLIST_CONF}.new"; then
                     mv "${BLOCKLIST_CONF}.new" "${BLOCKLIST_CONF}"
-                    # SIGHUP перечитывает только hosts-файлы, НЕ conf-dir.
-                    # Для перезагрузки address= директив нужен рестарт.
                     pkill -x dnsmasq 2>/dev/null || true
                     sleep 0.5
                     dnsmasq
@@ -60,10 +63,21 @@ echo -e "\n==========================================\nсодержимое /etc
 cat /etc/resolv.conf
 echo -e "\n==========================================\n"
 
-DOMAIN="mc.yandex.ru"
+BLOCKED_DOMAIN="mc.yandex.ru"
+LEGIT_DOMAIN="example.com"
 
-if curl -I --max-time 3 "http://$DOMAIN" >/dev/null 2>&1; then
-    echo "❌ $DOMAIN ОТКРЫВАЕТСЯ — dnsmasq НЕ блокирует"
+# Проверка блокировки
+BLOCKED_IP=$(/app/.venv/bin/python -c "import socket; print(socket.gethostbyname('$BLOCKED_DOMAIN'))" 2>/dev/null || true)
+if [ "$BLOCKED_IP" = "0.0.0.0" ] || [ -z "$BLOCKED_IP" ]; then
+    echo "✅ $BLOCKED_DOMAIN заблокирован (IP: ${BLOCKED_IP:-none})"
 else
-    echo "✅ $DOMAIN НЕ открывается — dnsmasq блокирует"
+    echo "❌ ОШИБКА: $BLOCKED_DOMAIN НЕ заблокирован! (IP: $BLOCKED_IP)" >&2
+fi
+
+# Проверка резолвинга легитимных доменов
+LEGIT_IP=$(/app/.venv/bin/python -c "import socket; print(socket.gethostbyname('$LEGIT_DOMAIN'))" 2>/dev/null || true)
+if [ -n "$LEGIT_IP" ] && [ "$LEGIT_IP" != "0.0.0.0" ]; then
+    echo "✅ Upstream DNS работает: $LEGIT_DOMAIN -> $LEGIT_IP"
+else
+    echo "❌ ОШИБКА: Upstream DNS сломан! $LEGIT_DOMAIN не резолвится." >&2
 fi

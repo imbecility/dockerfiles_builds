@@ -9,6 +9,21 @@ HEADERS = {
 GUARANTEED_BLOCKS = {"ad.doubleclick.net", "mc.yandex.ru"}
 
 
+def is_valid_domain(domain: str) -> bool:
+    if not domain or len(domain) > 253 or "." not in domain:
+        return False
+    labels = domain.split(".")
+    # Исключаем чистые IP-адреса (например, 0.0.0.0, 127.0.0.1, 0.0.0)
+    if all(label.isdigit() for label in labels):
+        return False
+    for label in labels:
+        if not label or len(label) > 63 or label.startswith("-") or label.endswith("-"):
+            return False
+        if not all(c.isalnum() or c == "-" for c in label):
+            return False
+    return any(c.isalpha() for c in labels[-1])
+
+
 def load_lines(file_path: Path) -> list[str]:
     if not file_path.exists():
         return []
@@ -60,7 +75,7 @@ def main():
                         domain = domain[2:]
                     domain = domain.split("^")[0]
 
-                    if "." in domain and not is_whitelisted(domain, whitelist):
+                    if is_valid_domain(domain) and not is_whitelisted(domain, whitelist):
                         blocked_domains.add(domain)
             except Exception:
                 pass
@@ -71,6 +86,8 @@ def main():
             f.write(f"address=/{domain}/0.0.0.0\n")
             f.write(f"address=/{domain}/::\n")
 
+    print("=" * 42)
+    print(f"Записано {len(blocked_domains)} уникальных заблокированных доменов.")
     print("="*42)
     print("записано в файл:")
     with open(args.output, "r", encoding="utf-8") as f:
@@ -78,7 +95,8 @@ def main():
             if i == 10:
                 break
             print(line, end="")
-    print("="*42)
+    print("=" * 42)
+
 
 if __name__ == "__main__":
     main()
