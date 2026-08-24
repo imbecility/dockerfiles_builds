@@ -343,37 +343,32 @@ def test_extensions_loaded(context: BrowserContext, expected_count: int = 7) -> 
 
 
 def test_dns_sinkhole(context: BrowserContext) -> None:
+    blocked_urls = [
+        "http://ad.doubleclick.net/favicon.ico",
+        "http://mc.yandex.ru/watch/12345"
+    ]
+    for url in blocked_urls:
+        page = context.new_page()
+        is_blocked = False
+        try:
+            page.goto(url, timeout=3000)
+        except Exception:
+            is_blocked = True
+        finally:
+            page.close()
+
+        assert is_blocked, f"❌ ОШИБКА: домен {url} загрузился: утечка DNS (активен DoH?) или не работает dnsmasq!"
+
+    # проверка легитимного DNS на чистой вкладке
     page = context.new_page()
     try:
-        # черный список (домены должны падать с Connection Refused)
-        blocked_urls = [
-            "http://ad.doubleclick.net/favicon.ico",
-            "http://mc.yandex.ru/watch/12345"
-        ]
-        for url in blocked_urls:
-            is_blocked = False
-            try:
-                # 0.0.0.0 отбивает соединение моментально, хватит минимального таймаута
-                page.goto(url, timeout=3000)
-            except Exception as e:
-                err_msg = str(e).lower()
-                if "refused" in err_msg or "name_not_resolved" in err_msg or "aborted" in err_msg or "timed_out" in err_msg:
-                    is_blocked = True
-                else:
-                    # любая сетевая ошибка = сайт не загрузился
-                    is_blocked = True
-
-            assert is_blocked, f"❌ ОШИБКА: домен {url} загрузился: утечка DNS (активен DoH?) или не работает dnsmasq!"
-
-        # проверка, что обычный интернет (или whitelist) работает штатно
-        try:
-            resp = page.goto("https://example.com", wait_until="domcontentloaded", timeout=15000)
-            assert resp and resp.status < 400, "легитимный сайт example.com не загрузился."
-        except Exception as e:
-            assert False, f"❌ ОШИБКА: сломан основной DNS-резолвинг легитимных доменов: {e}"
-
+        resp = page.goto("https://example.com", wait_until="domcontentloaded", timeout=15000)
+        assert resp and resp.status < 400, "легитимный сайт example.com не загрузился."
+    except Exception as e:
+        assert False, f"❌ ОШИБКА: сломан основной DNS-резолвинг легитимных доменов: {e}"
     finally:
         page.close()
+
 
 
 # --------------------------------------------------------------------------
