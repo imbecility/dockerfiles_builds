@@ -60,13 +60,14 @@ def main():
 
     print(f"[*] Собрано уникальных доменов: {len(blocked_domains)}")
 
-    # Запись в формате /etc/hosts (0.0.0.0 domain)
+    # Запись в нативном формате dnsmasq (address=/domain/0.0.0.0) для Wildcard-блокировки
     args.output.parent.mkdir(parents=True, exist_ok=True)
     with open(args.output, "w", encoding="utf-8") as f:
         for domain in sorted(blocked_domains):
-            f.write(f"0.0.0.0 {domain}\n")
+            f.write(f"address=/{domain}/0.0.0.0\n")
 
     print(f"[✓] Файл успешно сохранен в: {args.output}")
+
 
 if __name__ == "__main__":
     main()

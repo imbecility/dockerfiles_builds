@@ -2,7 +2,7 @@
 set -e
 
 DNSMASQ_CONF="/etc/dnsmasq.conf"
-DNS_HOSTS_FILE="/etc/dnsmasq.hosts"
+BLOCKLIST_CONF="/etc/dnsmasq.d/blocklist.conf"
 REFRESH_HOURS="${DNS_BLOCKLIST_REFRESH_HOURS:-6}"
 
 if [ "${DNS_SINKHOLE_DISABLE:-0}" != "1" ]; then
@@ -33,12 +33,16 @@ EOF
                 if python3 /app/build_dns_blocklist.py \
                     --sources /app/dns_sinkhole/sources.txt \
                     --whitelist /app/dns_sinkhole/whitelist.txt \
-                    --output "${DNS_HOSTS_FILE}.new"; then
-                    mv "${DNS_HOSTS_FILE}.new" "${DNS_HOSTS_FILE}"
-                    pkill -HUP -x dnsmasq 2>/dev/null || true
-                    echo "[dns-sinkhole] База обновлена, кэш dnsmasq сброшен"
+                    --output "${BLOCKLIST_CONF}.new"; then
+                    mv "${BLOCKLIST_CONF}.new" "${BLOCKLIST_CONF}"
+
+                    # Полный рестарт для применения новых address= правил
+                    pkill -x dnsmasq 2>/dev/null || true
+                    sleep 0.5
+                    dnsmasq --conf-file="$DNSMASQ_CONF"
+                    echo "[dns-sinkhole] База обновлена, dnsmasq перезапущен"
                 else
-                    rm -f "${DNS_HOSTS_FILE}.new"
+                    rm -f "${BLOCKLIST_CONF}.new"
                 fi
             done
         ) &

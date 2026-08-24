@@ -347,8 +347,8 @@ def test_dns_sinkhole(context: BrowserContext) -> None:
     try:
         # черный список (домены должны падать с Connection Refused)
         blocked_urls = [
-            "http://doubleclick.net",
-            "http://mc.yandex.ru"
+            "http://ad.doubleclick.net/favicon.ico",
+            "http://mc.yandex.ru/watch/12345"
         ]
         for url in blocked_urls:
             is_blocked = False
@@ -357,8 +357,7 @@ def test_dns_sinkhole(context: BrowserContext) -> None:
                 page.goto(url, timeout=3000)
             except Exception as e:
                 err_msg = str(e).lower()
-                # Chromium: err_connection_refused, Firefox: ns_error_connection_refused
-                if "refused" in err_msg or "name_not_resolved" in err_msg or "aborted" in err_msg:
+                if "refused" in err_msg or "name_not_resolved" in err_msg or "aborted" in err_msg or "timed_out" in err_msg:
                     is_blocked = True
                 else:
                     # любая сетевая ошибка = сайт не загрузился
