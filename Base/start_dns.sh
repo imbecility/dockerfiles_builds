@@ -1,8 +1,7 @@
 #!/bin/bash
 set -e
 
-DNSMASQ_CONF="/etc/dnsmasq.d/blocklist.conf"
-DNS_HOSTS_FILE="/etc/dnsmasq.hosts"
+BLOCKLIST_CONF="/etc/dnsmasq.d/blocklist.conf"
 REFRESH_HOURS="${DNS_BLOCKLIST_REFRESH_HOURS:-6}"
 
 if [ "${DNS_SINKHOLE_DISABLE:-0}" != "1" ]; then
@@ -13,7 +12,9 @@ options timeout:1 attempts:1
 EOF
 
     echo "[dns-sinkhole] Запуск dnsmasq..."
-    dnsmasq --conf-file="$DNSMASQ_CONF"
+    # БЕЗ --conf-file: читает /etc/dnsmasq.conf по умолчанию,
+    # который содержит no-resolv, server=1.1.1.1 и conf-dir с блоклистом
+    dnsmasq
 
     # Ожидание готовности DNS
     for i in $(seq 1 20); do
@@ -33,12 +34,16 @@ EOF
                 if /app/.venv/bin/python /app/build_dns_blocklist.py \
                     --sources /app/dns_sinkhole/sources.txt \
                     --whitelist /app/dns_sinkhole/whitelist.txt \
-                    --output "${DNS_HOSTS_FILE}.new"; then
-                    mv "${DNS_HOSTS_FILE}.new" "${DNS_HOSTS_FILE}"
-                    pkill -HUP -x dnsmasq 2>/dev/null || true
-                    echo "[dns-sinkhole] База обновлена, кэш dnsmasq сброшен"
+                    --output "${BLOCKLIST_CONF}.new"; then
+                    mv "${BLOCKLIST_CONF}.new" "${BLOCKLIST_CONF}"
+                    # SIGHUP перечитывает только hosts-файлы, НЕ conf-dir.
+                    # Для перезагрузки address= директив нужен рестарт.
+                    pkill -x dnsmasq 2>/dev/null || true
+                    sleep 0.5
+                    dnsmasq
+                    echo "[dns-sinkhole] База обновлена, dnsmasq перезапущен"
                 else
-                    rm -f "${DNS_HOSTS_FILE}.new"
+                    rm -f "${BLOCKLIST_CONF}.new"
                 fi
             done
         ) &
@@ -62,4 +67,3 @@ if curl -I --max-time 3 "http://$DOMAIN" >/dev/null 2>&1; then
 else
     echo "✅ $DOMAIN НЕ открывается — dnsmasq блокирует"
 fi
-
