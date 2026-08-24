@@ -1,6 +1,7 @@
 FROM debian:stable-slim
 
-ENV PATH="/app/.venv/bin:$PATH"
+ENV VIRTUAL_ENV=/app/.venv \
+    PATH="/app/.venv/bin:$PATH"
 
 COPY --from=ghcr.io/astral-sh/uv:latest /uv /uvx /bin/
 
@@ -9,7 +10,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     fonts-liberation fonts-noto-color-emoji && \
     mkdir -p /etc/dnsmasq.d /app/dns_sinkhole && \
     uv venv /app/.venv --python 3.14 && \
-    uv pip install httpx && \
+    uv pip install pip httpx && \
     rm -rf /var/lib/apt/lists/*
 
 COPY dnsmasq.conf /etc/dnsmasq.conf

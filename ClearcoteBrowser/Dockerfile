@@ -1,4 +1,4 @@
-ARG BASE_IMAGE
+ARG BASE_IMAGE=base:latest
 FROM ${BASE_IMAGE}
 
 ENV XDG_CACHE_HOME=/opt/xdg-cache \
