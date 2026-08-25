@@ -7,15 +7,15 @@ ENV XDG_CACHE_HOME=/opt/xdg-cache \
 WORKDIR /app
 COPY serve.py /app/serve.py
 
-RUN apt-get update >/dev/null && apt-get install -y --no-install-recommends \
+RUN set -x && apt-get update && apt-get install -y --no-install-recommends \
       xz-utils socat unzip authbind \
       libnss3 libnspr4 libgbm1 libasound2 libatk1.0-0 libatk-bridge2.0-0 libcups2 libdrm2 \
       libxkbcommon0 libxcomposite1 libxdamage1 libxrandr2 libxfixes3 libxext6 libxrender1 libxcb1 \
       libpango-1.0-0 libcairo2 libx11-6 libexpat1 libdbus-1-3 libxi6 libxtst6 \
-      fontconfig fonts-unifont fonts-wqy-zenhei >/dev/null && \
+      fontconfig fonts-unifont fonts-wqy-zenhei && \
     mkdir -p /opt/xdg-cache && \
-    pip install --no-cache-dir clearcote >/dev/null && \
-    python -c "from clearcote import download; print('binary:', download())" >/dev/null && \
+    pip install --no-cache-dir clearcote && \
+    python -c "from clearcote import download; print('binary:', download())" && \
     curl -sSL "https://clients2.google.com/service/update2/crx?response=redirect&arch=x86-64&os_arch=x86-64&nacl_arch=x86-64&prod=chromecrx&prodchannel=unknown&prodversion=9999.0.9999.0&acceptformat=crx2,crx3&x=id%3Dddkjiahejlhfcafbddmgiahcphecmpfh%26uc" -o /tmp/ext.zip && \
     mkdir -p /app/extensions/ublock && unzip -q /tmp/ext.zip -d /app/extensions/ublock || true && \
     curl -sSL "https://clients2.google.com/service/update2/crx?response=redirect&arch=x86-64&os_arch=x86-64&nacl_arch=x86-64&prod=chromecrx&prodchannel=unknown&prodversion=9999.0.9999.0&acceptformat=crx2,crx3&x=id%3Dnngceckbapebfimnlniiiahkandclblb%26uc" -o /tmp/ext.zip && \
