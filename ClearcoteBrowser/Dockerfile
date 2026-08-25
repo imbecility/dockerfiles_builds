@@ -30,16 +30,16 @@ RUN apt-get update >/dev/null && apt-get install -y --no-install-recommends \
     mkdir -p /app/extensions/yasearch && unzip -q /tmp/ext.zip -d /app/extensions/yasearch || true && \
     curl -sSL "https://github.com/ClearURLs/Addon/releases/download/1.27.3/ClearURLs.zip" -o /tmp/ext.zip && \
     mkdir -p /app/extensions/clearurls && unzip -q /tmp/ext.zip -d /app/extensions/clearurls || true && \
-    rm -f /tmp/ext.zip && \
+    rm -rf /tmp/ext.zip /var/lib/apt/lists/* && \
+    setcap cap_net_bind_service=+ep /usr/sbin/dnsmasq && \
+    chown root:cc /etc/resolv.conf && chmod 664 /etc/resolv.conf && \
     useradd -m -u 10001 cc && chown -R cc /opt/xdg-cache /app && \
-    chmod 755 /root && chmod -R a+rX /root/.local && \
-    rm -rf /var/lib/apt/lists/*
+    chmod 755 /root && chmod -R a+rX /root/.local
 
 COPY --chmod=755 <<-"EOF" /app/start.sh
 #!/bin/bash
 set -e
-# Запуск DNS от имени root
-sudo bash /app/start_dns.sh || true
+bash /app/start_dns.sh || true
 
 # export CC_EXTRA_ARGS="--disable-features=BuiltInDnsClient,AsyncDns,DnsOverHttpsUpgrade,DnsOverHttps ${CC_EXTRA_ARGS}"
 
