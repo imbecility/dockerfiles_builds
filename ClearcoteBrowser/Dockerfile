@@ -33,7 +33,6 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     rm -f /tmp/ext.zip && \
     useradd -m -u 10001 cc && chown -R cc /opt/xdg-cache /app && \
     chmod 755 /root && chmod -R a+rX /root/.local && \
-    chmod 1777 /tmp /tmp/.X11-unix && \
     rm -rf /var/lib/apt/lists/*
 
 COPY --chmod=755 <<-"EOF" /app/start.sh
@@ -42,22 +41,9 @@ set -e
 # Запуск DNS от имени root
 sudo bash /app/start_dns.sh
 
-export DISPLAY=:99
-Xvfb :99 -screen 0 1920x1080x24 -nolisten tcp -ac &
+# export CC_EXTRA_ARGS="--disable-features=BuiltInDnsClient,AsyncDns,DnsOverHttpsUpgrade,DnsOverHttps ${CC_EXTRA_ARGS}"
 
-for i in $(seq 1 20); do
-    if xdpyinfo -display :99 >/dev/null 2>&1; then
-        echo "Xvfb готов (попытка $i)"
-        break
-    fi
-    sleep 0.5
-done
-if ! xdpyinfo -display :99 >/dev/null 2>&1; then
-    echo "Xvfb не поднялся за отведенное время!" >&2
-    exit 1
-fi
-
-# Прямой запуск от имени cc
+# Прямой запуск от имени текущего юзера (cc)
 exec /app/.venv/bin/python /app/serve.py
 EOF
 
