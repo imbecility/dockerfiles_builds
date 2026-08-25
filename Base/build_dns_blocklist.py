@@ -59,7 +59,7 @@ def main():
                         domain = domain[2:]
                     domain = domain.split("^")[0]
 
-                    # Исключаем сырые IP и мусор, чтобы dnsmasq не крашился при парсинге
+                    # Фильтр мусора: игнорируем чисто IP-подобные строки из баз
                     if not domain or len(domain) > 253 or "." not in domain:
                         continue
                     if all(label.isdigit() for label in domain.split(".")):
@@ -68,13 +68,13 @@ def main():
                     if not is_whitelisted(domain, whitelist):
                         blocked_domains.add(domain)
             except Exception:
-                continue
+                pass
 
     args.output.parent.mkdir(parents=True, exist_ok=True)
     with open(args.output, "w", encoding="utf-8") as f:
         for domain in sorted(blocked_domains):
-            # NXDOMAIN: отсекает сетевые запросы без попыток установки TCP/IP соединения
-            f.write(f"address=/{domain}/\n")
+            f.write(f"address=/{domain}/0.0.0.0\n")
+            f.write(f"address=/{domain}/::\n")
 
 
 if __name__ == "__main__":

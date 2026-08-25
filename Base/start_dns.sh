@@ -2,6 +2,7 @@
 set -e
 
 DNSMASQ_CONF="/etc/dnsmasq.d/blocklist.conf"
+DNS_HOSTS_FILE="/etc/dnsmasq.hosts"
 REFRESH_HOURS="${DNS_BLOCKLIST_REFRESH_HOURS:-6}"
 
 if [ "${DNS_SINKHOLE_DISABLE:-0}" != "1" ]; then
@@ -12,7 +13,8 @@ options timeout:1 attempts:1
 EOF
 
     echo "[dns-sinkhole] Запуск dnsmasq..."
-    # запускается по умолчанию, подхватывает /etc/dnsmasq.conf
+    # ОШИБКА БЫЛА ЗДЕСЬ: запуск должен быть без --conf-file, иначе он игнорировал
+    # апстримы (8.8.8.8) и падал в мертвую петлю резолвинга
     dnsmasq
 
     for i in $(seq 1 20); do
@@ -27,24 +29,36 @@ EOF
         (
             while true; do
                 sleep "$((REFRESH_HOURS * 3600))"
+                echo "[dns-sinkhole] Фоновое обновление блок-листов..."
                 if /app/.venv/bin/python /app/build_dns_blocklist.py \
                     --sources /app/dns_sinkhole/sources.txt \
                     --whitelist /app/dns_sinkhole/whitelist.txt \
-                    --output "${DNSMASQ_CONF}.new"; then
-                    mv "${DNSMASQ_CONF}.new" "${DNSMASQ_CONF}"
-                    pkill -x dnsmasq 2>/dev/null || true
-                    sleep 0.2
-                    dnsmasq
+                    --output "${DNS_HOSTS_FILE}.new"; then
+                    mv "${DNS_HOSTS_FILE}.new" "${DNS_HOSTS_FILE}"
+                    pkill -HUP -x dnsmasq 2>/dev/null || true
+                    echo "[dns-sinkhole] База обновлена, кэш dnsmasq сброшен"
                 else
-                    rm -f "${DNSMASQ_CONF}.new"
+                    rm -f "${DNS_HOSTS_FILE}.new"
                 fi
             done
-        ) </dev/null >/dev/null 2>&1 &
+        ) &
     fi
 else
-    echo "[dns-sinkhole] Отключено"
+    echo "[dns-sinkhole] Отключено (DNS_SINKHOLE_DISABLE=1)"
     cat <<EOF > /etc/resolv.conf
-nameserver 8.8.8.8
 nameserver 1.1.1.1
+nameserver 1.0.0.1
 EOF
+fi
+
+echo -e "\n==========================================\nсодержимое /etc/resolv.conf:\n"
+cat /etc/resolv.conf
+echo -e "\n==========================================\n"
+
+DOMAIN="mc.yandex.ru"
+
+if curl -I --max-time 3 "http://$DOMAIN" >/dev/null 2>&1; then
+    echo "❌ $DOMAIN ОТКРЫВАЕТСЯ — dnsmasq НЕ блокирует"
+else
+    echo "✅ $DOMAIN НЕ открывается — dnsmasq блокирует"
 fi
