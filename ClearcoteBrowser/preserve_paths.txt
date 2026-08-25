@@ -5,6 +5,9 @@
 /opt/xdg-cache
 /app/extensions
 /usr/sbin/dnsmasq
+/usr/sbin/dnsmasq.real
+/usr/bin/authbind
+/etc/authbind/byport/53
 /usr/bin/sudo
 /etc/sudoers
 /etc/sudoers.d

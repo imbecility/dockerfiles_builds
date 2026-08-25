@@ -8,7 +8,7 @@ WORKDIR /app
 COPY serve.py /app/serve.py
 
 RUN apt-get update >/dev/null && apt-get install -y --no-install-recommends \
-      xz-utils socat unzip libcap2-bin \
+      xz-utils socat unzip authbind \
       libnss3 libnspr4 libgbm1 libasound2 libatk1.0-0 libatk-bridge2.0-0 libcups2 libdrm2 \
       libxkbcommon0 libxcomposite1 libxdamage1 libxrandr2 libxfixes3 libxext6 libxrender1 libxcb1 \
       libpango-1.0-0 libcairo2 libx11-6 libexpat1 libdbus-1-3 libxi6 libxtst6 \
@@ -32,7 +32,14 @@ RUN apt-get update >/dev/null && apt-get install -y --no-install-recommends \
     mkdir -p /app/extensions/clearurls && unzip -q /tmp/ext.zip -d /app/extensions/clearurls || true && \
     rm -rf /tmp/ext.zip /var/lib/apt/lists/* && \
     useradd -m -u 10001 cc && \
-    setcap cap_net_bind_service=+ep /usr/sbin/dnsmasq && \
+    mkdir -p /etc/authbind/byport && \
+    touch /etc/authbind/byport/53 && \
+    chown cc /etc/authbind/byport/53 && \
+    chmod 500 /etc/authbind/byport/53 && \
+    mv /usr/sbin/dnsmasq /usr/sbin/dnsmasq.real && \
+    printf '#!/bin/sh\nexec authbind --deep /usr/sbin/dnsmasq.real "$@"\n' \
+        > /usr/sbin/dnsmasq && \
+    chmod 755 /usr/sbin/dnsmasq && \
     chown -R cc /opt/xdg-cache /app && \
     chmod 755 /root && chmod -R a+rX /root/.local || true && \
     chown root:cc /etc/resolv.conf && chmod 664 /etc/resolv.conf
