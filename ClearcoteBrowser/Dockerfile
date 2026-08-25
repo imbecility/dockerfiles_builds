@@ -39,7 +39,7 @@ COPY --chmod=755 <<-"EOF" /app/start.sh
 #!/bin/bash
 set -e
 # Запуск DNS от имени root
-sudo bash /app/start_dns.sh
+sudo bash /app/start_dns.sh || true
 
 # export CC_EXTRA_ARGS="--disable-features=BuiltInDnsClient,AsyncDns,DnsOverHttpsUpgrade,DnsOverHttps ${CC_EXTRA_ARGS}"
 
