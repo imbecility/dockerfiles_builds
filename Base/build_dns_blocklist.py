@@ -1,4 +1,3 @@
-# ./Base/build_dns_blocklist.py
 import argparse
 from pathlib import Path
 import httpx
@@ -8,12 +7,11 @@ HEADERS = {
 }
 GUARANTEED_BLOCKS = {"ad.doubleclick.net", "mc.yandex.ru"}
 
-
 def is_valid_domain(domain: str) -> bool:
     if not domain or len(domain) > 253 or "." not in domain:
         return False
-    # Фильтруем чистые IP и мусор
     labels = domain.split(".")
+    # Исключение 0.0.0.0 и мусора из списков
     if all(label.isdigit() for label in labels):
         return False
     for label in labels:
@@ -22,7 +20,6 @@ def is_valid_domain(domain: str) -> bool:
         if not all(c.isalnum() or c == "-" for c in label):
             return False
     return True
-
 
 def load_lines(file_path: Path) -> list[str]:
     if not file_path.exists():
@@ -33,12 +30,10 @@ def load_lines(file_path: Path) -> list[str]:
         if line.strip() and not line.strip().startswith("#")
     ]
 
-
 def is_whitelisted(domain: str, whitelist: set[str]) -> bool:
     if domain in whitelist:
         return True
     return any(domain.endswith("." + w) for w in whitelist)
-
 
 def main():
     parser = argparse.ArgumentParser()
@@ -78,14 +73,13 @@ def main():
                     if is_valid_domain(domain) and not is_whitelisted(domain, whitelist):
                         blocked_domains.add(domain)
             except Exception:
-                pass
+                continue
 
     args.output.parent.mkdir(parents=True, exist_ok=True)
     with open(args.output, "w", encoding="utf-8") as f:
         for domain in sorted(blocked_domains):
-            f.write(f"address=/{domain}/0.0.0.0\n")
-            f.write(f"address=/{domain}/::\n")
-
+            # Синтаксис генерации NXDOMAIN - браузер падает сразу с ERR_NAME_NOT_RESOLVED
+            f.write(f"address=/{domain}/\n")
 
 if __name__ == "__main__":
     main()
