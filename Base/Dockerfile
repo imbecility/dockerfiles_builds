@@ -26,4 +26,4 @@ RUN chmod +x /app/start_dns.sh && \
     /app/.venv/bin/python /app/build_dns_blocklist.py \
       --sources /app/dns_sinkhole/sources.txt \
       --whitelist /app/dns_sinkhole/whitelist.txt \
-      --output /etc/dnsmasq.hosts
+      --output /etc/dnsmasq.d/blocklist.conf

@@ -6,7 +6,7 @@ WORKDIR /app
 
 RUN echo "deb http://deb.debian.org/debian trixie contrib" >> /etc/apt/sources.list.d/contrib.list && \
     echo "ttf-mscorefonts-installer msttcorefonts/accepted-mscorefonts-eula select true" | debconf-set-selections && \
-    apt-get update >/dev/nullv && apt-get install -y --no-install-recommends \
+    apt-get update >/dev/null && apt-get install -y --no-install-recommends \
     git \
     libnss3 libnspr4 libatk1.0-0 libatk-bridge2.0-0 libcups2 \
     libdbus-1-3 libdrm2 libxkbcommon0 libatspi2.0-0 libxcomposite1 \
@@ -18,7 +18,7 @@ RUN echo "deb http://deb.debian.org/debian trixie contrib" >> /etc/apt/sources.l
     fonts-unifont fonts-freefont-ttf \
     fonts-ipafont-gothic fonts-wqy-zenhei fonts-tlwg-loma-otf \
     libgl1-mesa-dri libegl-mesa0 \
-    xclip ffmpeg unzip privoxy ttf-mscorefonts-installer >/dev/nullv && \
+    xclip ffmpeg unzip privoxy ttf-mscorefonts-installer >/dev/null && \
     curl -fsSL https://deb.nodesource.com/setup_20.x | bash - && \
     apt-get install -y --no-install-recommends nodejs >/dev/null && \
     ln -sf /app/.venv/bin/* /usr/local/bin/ && \
