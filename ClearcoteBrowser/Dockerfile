@@ -8,7 +8,7 @@ WORKDIR /app
 COPY serve.py /app/serve.py
 
 RUN apt-get update >/dev/null && apt-get install -y --no-install-recommends \
-      xz-utils socat unzip \
+      xz-utils socat unzip libcap2-bin \
       libnss3 libnspr4 libgbm1 libasound2 libatk1.0-0 libatk-bridge2.0-0 libcups2 libdrm2 \
       libxkbcommon0 libxcomposite1 libxdamage1 libxrandr2 libxfixes3 libxext6 libxrender1 libxcb1 \
       libpango-1.0-0 libcairo2 libx11-6 libexpat1 libdbus-1-3 libxi6 libxtst6 \
