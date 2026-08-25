@@ -1,3 +1,4 @@
+# ./Base/build_dns_blocklist.py
 import argparse
 from pathlib import Path
 import httpx
@@ -11,6 +12,7 @@ GUARANTEED_BLOCKS = {"ad.doubleclick.net", "mc.yandex.ru"}
 def is_valid_domain(domain: str) -> bool:
     if not domain or len(domain) > 253 or "." not in domain:
         return False
+    # Фильтруем чистые IP и мусор
     labels = domain.split(".")
     if all(label.isdigit() for label in labels):
         return False
@@ -81,12 +83,8 @@ def main():
     args.output.parent.mkdir(parents=True, exist_ok=True)
     with open(args.output, "w", encoding="utf-8") as f:
         for domain in sorted(blocked_domains):
-            # Формат address=/domain/ возвращает NXDOMAIN для всех типов запросов (A/AAAA)
-            f.write(f"address=/{domain}/\n")
-
-    print("=" * 42)
-    print(f"Записано {len(blocked_domains)} уникальных заблокированных доменов в {args.output}")
-    print("=" * 42)
+            f.write(f"address=/{domain}/0.0.0.0\n")
+            f.write(f"address=/{domain}/::\n")
 
 
 if __name__ == "__main__":
