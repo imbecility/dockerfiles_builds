@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 """clearcote CDP-server entrypoint.
 
 Launches the clearcote stealth Chromium — HEADFUL on a virtual X display (Xvfb) by default, so

@@ -48,7 +48,7 @@ EOF
 
     DNS_READY=0
     for i in $(seq 1 40); do
-        if python3 - 2>/dev/null <<'PYEOF'
+        if /app/.venv/bin/python - 2>/dev/null <<'PYEOF'
 import socket
 # Минимальный DNS A-запрос: "example.com"
 q = (b'\xca\xfe'          # ID
@@ -84,7 +84,7 @@ PYEOF
     # Ожидание готовности DNS
     DNS_READY=false
     for i in $(seq 1 30); do
-        if python3 -c "import socket; s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM); s.connect(('127.0.0.1', 53)); s.close()" 2>/dev/null; then
+        if /app/.venv/bin/python -c "import socket; s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM); s.connect(('127.0.0.1', 53)); s.close()" 2>/dev/null; then
             echo "[dns-sinkhole] dnsmasq успешно слушает порт 53"
             DNS_READY=true
             break
@@ -102,7 +102,7 @@ PYEOF
             while true; do
                 sleep "$((REFRESH_HOURS * 3600))"
                 echo "[dns-sinkhole] Фоновое обновление блок-листов..."
-                if python3 /app/build_dns_blocklist.py \
+                if /app/.venv/bin/python /app/build_dns_blocklist.py \
                     --sources /app/dns_sinkhole/sources.txt \
                     --whitelist /app/dns_sinkhole/whitelist.txt \
                     --output "${DNS_HOSTS_FILE}.new"; then
