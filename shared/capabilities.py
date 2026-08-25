@@ -23,6 +23,7 @@ def test_navigation_variants(context: BrowserContext) -> None:
     finally:
         page.close()
 
+
 def test_js_execution(context: BrowserContext) -> None:
     page = context.new_page()
     try:
@@ -35,8 +36,6 @@ def test_js_execution(context: BrowserContext) -> None:
         assert page.evaluate("async () => await window.pyHello()") == "hello from python"
     finally:
         page.close()
-
-
 
 
 def test_screenshots(context: BrowserContext) -> None:
@@ -343,9 +342,6 @@ def test_extensions_loaded(context: BrowserContext, expected_count: int = 7) -> 
         page.close()
 
 
-
-
-
 def test_dns_sinkhole(context: BrowserContext) -> None:
     blocked_urls = [
         "http://ad.doubleclick.net/favicon.ico",
@@ -376,8 +372,6 @@ def test_dns_sinkhole(context: BrowserContext) -> None:
         assert False, f"❌ ОШИБКА: сломан основной DNS-резолвинг легитимных доменов: {e}"
     finally:
         page.close()
-
-
 
 
 # --------------------------------------------------------------------------
