@@ -22,8 +22,9 @@ COPY start_dns.sh /app/start_dns.sh
 COPY build_dns_blocklist.py /app/build_dns_blocklist.py
 COPY dns_sinkhole/sources.txt /app/dns_sinkhole/sources.txt
 COPY dns_sinkhole/whitelist.txt /app/dns_sinkhole/whitelist.txt
+COPY chrome-extensions.sh /app/chrome-extensions.sh
 
-RUN chmod +x /app/start_dns.sh && \
+RUN chmod +x /app/start_dns.sh /app/chrome-extensions.sh && \
     /app/.venv/bin/python /app/build_dns_blocklist.py \
       --sources /app/dns_sinkhole/sources.txt \
       --whitelist /app/dns_sinkhole/whitelist.txt \
