@@ -7,7 +7,6 @@ REFRESH_HOURS="${DNS_BLOCKLIST_REFRESH_HOURS:-6}"
 
 if [ "${DNS_SINKHOLE_DISABLE:-0}" != "1" ]; then
     echo "[dns-sinkhole] Перенаправление /etc/resolv.conf на 127.0.0.1..."
-    rm -f /etc/resolv.conf
     cat <<EOF > /etc/resolv.conf
 nameserver 127.0.0.1
 options timeout:1 attempts:1
@@ -24,7 +23,6 @@ EOF
 
     echo "[dns-sinkhole] IP контейнера: ${CONTAINER_IP:-не определён (используем 127.0.0.1)}"
 
-
     echo "[dns-sinkhole] Проверка конфигурации dnsmasq..."
     # если файл по какой-то причине не создался на этапе build
     if [ ! -f "$DNS_HOSTS_FILE" ]; then
@@ -33,6 +31,7 @@ EOF
     fi
 
     echo "[dns-sinkhole] Запуск dnsmasq..."
+    pkill -9 -x dnsmasq 2>/dev/null || true
     # stderr в лог, чтобы увидеть причину падения, если оно произойдет.
     dnsmasq --conf-file="$DNSMASQ_CONF" 2>&1 | tee /tmp/dnsmasq_startup.log &
     sleep 3
