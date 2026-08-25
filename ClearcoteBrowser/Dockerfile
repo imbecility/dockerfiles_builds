@@ -2,7 +2,7 @@ ARG BASE_IMAGE=base:latest
 FROM ${BASE_IMAGE}
 
 ENV XDG_CACHE_HOME=/opt/xdg-cache \
-    CC_EXTENSIONS="/app/extensions/ublock,/app/extensions/bitwarden,/app/extensions/gtranslate,/app/extensions/grammarly,/app/extensions/cookies,/app/extensions/yasearch,/app/extensions/clearurls"
+    CC_EXTENSIONS="/app/extensions/bitwarden,/app/extensions/gtranslate,/app/extensions/grammarly,/app/extensions/cookies,/app/extensions/yasearch,/app/extensions/clearurls"
 
 WORKDIR /app
 COPY serve.py /app/serve.py
