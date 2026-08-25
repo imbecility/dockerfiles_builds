@@ -7,15 +7,15 @@ ENV XDG_CACHE_HOME=/opt/xdg-cache \
 WORKDIR /app
 COPY serve.py /app/serve.py
 
-RUN set -x && apt-get update && apt-get install -y --no-install-recommends \
+RUN apt-get update >/dev/null && apt-get install -y --no-install-recommends \
       xz-utils socat unzip authbind \
       libnss3 libnspr4 libgbm1 libasound2 libatk1.0-0 libatk-bridge2.0-0 libcups2 libdrm2 \
       libxkbcommon0 libxcomposite1 libxdamage1 libxrandr2 libxfixes3 libxext6 libxrender1 libxcb1 \
       libpango-1.0-0 libcairo2 libx11-6 libexpat1 libdbus-1-3 libxi6 libxtst6 \
-      fontconfig fonts-unifont fonts-wqy-zenhei && \
+      fontconfig fonts-unifont fonts-wqy-zenhei >/dev/null && \
     mkdir -p /opt/xdg-cache && \
-    pip install --no-cache-dir clearcote && \
-    python -c "from clearcote import download; print('binary:', download())" && \
+    pip install --no-cache-dir clearcote >/dev/null && \
+    python -c "from clearcote import download; print('binary:', download())" >/dev/null && \
     curl -sSL "https://clients2.google.com/service/update2/crx?response=redirect&arch=x86-64&os_arch=x86-64&nacl_arch=x86-64&prod=chromecrx&prodchannel=unknown&prodversion=9999.0.9999.0&acceptformat=crx2,crx3&x=id%3Dddkjiahejlhfcafbddmgiahcphecmpfh%26uc" -o /tmp/ext.zip && \
     mkdir -p /app/extensions/ublock && unzip -q /tmp/ext.zip -d /app/extensions/ublock || true && \
     curl -sSL "https://clients2.google.com/service/update2/crx?response=redirect&arch=x86-64&os_arch=x86-64&nacl_arch=x86-64&prod=chromecrx&prodchannel=unknown&prodversion=9999.0.9999.0&acceptformat=crx2,crx3&x=id%3Dnngceckbapebfimnlniiiahkandclblb%26uc" -o /tmp/ext.zip && \
@@ -41,13 +41,13 @@ RUN set -x && apt-get update && apt-get install -y --no-install-recommends \
         > /usr/sbin/dnsmasq && \
     chmod 755 /usr/sbin/dnsmasq && \
     chown -R cc /opt/xdg-cache /app && \
-    chmod 755 /root && chmod -R a+rX /root/.local || true && \
-    chown root:cc /etc/resolv.conf && chmod 664 /etc/resolv.conf
+    chmod 755 /root && chmod -R a+rX /root/.local || true
 
 
 COPY --chmod=755 <<-"EOF" /app/start.sh
 #!/bin/bash
 set -e
+chown root:cc /etc/resolv.conf && chmod 664 /etc/resolv.conf
 # Запуск DNS от имени root
 bash /app/start_dns.sh
 
