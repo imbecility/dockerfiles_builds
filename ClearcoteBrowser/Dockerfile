@@ -39,7 +39,7 @@ RUN apt-get update >/dev/null && apt-get install -y --no-install-recommends \
 COPY --chmod=755 <<-"EOF" /app/start.sh
 #!/bin/bash
 set -e
-bash /app/start_dns.sh || true
+bash /app/start_dns.sh
 
 # export CC_EXTRA_ARGS="--disable-features=BuiltInDnsClient,AsyncDns,DnsOverHttpsUpgrade,DnsOverHttps ${CC_EXTRA_ARGS}"
 
