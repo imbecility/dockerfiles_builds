@@ -73,8 +73,8 @@ def main():
     args.output.parent.mkdir(parents=True, exist_ok=True)
     with open(args.output, "w", encoding="utf-8") as f:
         for domain in sorted(blocked_domains):
-            f.write(f"127.0.0.1 {domain}\n")
-            f.write(f"::1 {domain}\n")
+            f.write(f"0.0.0.0 {domain}\n")
+            f.write(f":: {domain}\n")
             # или NXDOMAIN?
             # f.write(f"address=/{domain}/\n")
 

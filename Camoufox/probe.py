@@ -1,5 +1,6 @@
 import sys
 from pathlib import Path
+from socket import getaddrinfo
 
 ROOT_DIR = Path(__file__).resolve().parents[1]
 if str(ROOT_DIR) not in sys.path:
@@ -19,6 +20,11 @@ def main() -> None:
         context.set_default_timeout(15000)
         run_firefox_smoke_suite(context, extended=False)
         try:
+            getaddrinfo("example.com", 80)
+            print("DNS резолвинг example.com: OK")
+        except Exception as e:
+            print(f"DNS резолвинг example.com: FAIL ({e})")
+        try:
             context.set_default_timeout(10000)
             page = context.new_page()
             page.goto("https://google.com", wait_until="domcontentloaded")
@@ -28,6 +34,7 @@ def main() -> None:
             pass
         context.close()
         browser.close()
+
 
 
 if __name__ == "__main__":
