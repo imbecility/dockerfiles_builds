@@ -1,0 +1,151 @@
+name: Stealth Benchmark
+
+on:
+  workflow_dispatch:
+    inputs:
+      service:
+        description: 'сервис для бенчмарка (all / Camoufox / ClearcoteBrowser / CloakBrowser)'
+        required: false
+        default: 'all'
+  schedule:
+    # раз в неделю по воскресеньям в 03:00 UTC
+    - cron: '0 3 * * 0'
+  # запускать автоматически после успешной публикации образов
+  workflow_run:
+    workflows: ["Dynamic Build, Optimize and Publish"]
+    types: [completed]
+
+env:
+  REGISTRY: ghcr.io
+
+jobs:
+  setup-matrix:
+    if: ${{ github.event.workflow_run.conclusion == 'success' || github.event_name != 'workflow_run' }}
+    runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.set-matrix.outputs.matrix }}
+    steps:
+      - id: set-matrix
+        env:
+          INPUT_SERVICE: ${{ inputs.service }}
+        run: |
+          ALL='[
+            {"name":"Camoufox","transport":"ws","port":7861,"url":"ws://localhost:7861/camoufox","flags":"--shm-size=1g"},
+            {"name":"ClearcoteBrowser","transport":"cdp","port":9222,"url":"http://localhost:9222","flags":"--shm-size=1g"},
+            {"name":"CloakBrowser","transport":"cdp","port":7860,"url":"http://localhost:7860","flags":"--shm-size=1g"}
+          ]'
+          if [ -z "$INPUT_SERVICE" ] || [ "$INPUT_SERVICE" = "all" ]; then
+            echo "matrix=$(echo "$ALL" | tr -d '\n' | tr -s ' ')" >> $GITHUB_OUTPUT
+          else
+            FILTERED=$(echo "$ALL" | python3 -c "import json, sys, os;data = json.load(sys.stdin);name = os.environ['INPUT_SERVICE'];print(json.dumps([d for d in data if d['name'] == name]))")
+            echo "matrix=$FILTERED" >> $GITHUB_OUTPUT
+          fi
+
+  benchmark:
+    needs: setup-matrix
+    if: ${{ needs.setup-matrix.outputs.matrix != '[]' }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include: ${{ fromJSON(needs.setup-matrix.outputs.matrix) }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7
+
+      - name: Set up Python
+        uses: actions/setup-python@v7
+        with:
+          python-version: '3.14'
+
+      - name: Install benchmark dependencies
+        run: python -m pip install --upgrade pip playwright httpx
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Pull image
+        run: |
+          IMAGE=$(echo "${{ env.REGISTRY }}/${{ github.repository }}/${{ matrix.name }}:latest" | tr '[:upper:]' '[:lower:]')
+          echo "IMAGE=$IMAGE" >> $GITHUB_ENV
+          docker pull "$IMAGE"
+
+      - name: Run container
+        run: |
+          CID=$(docker run -d ${{ matrix.flags }} -p ${{ matrix.port }}:${{ matrix.port }} "$IMAGE")
+          echo "CONTAINER_ID=$CID" >> $GITHUB_ENV
+          echo "ℹ️ контейнер запущен: $CID"
+
+      - name: Run benchmark
+        run: |
+          mkdir -p benchmark_results/${{ matrix.name }}
+          python3 scripts/benchmark_browsers.py \
+            --service "${{ matrix.name }}" \
+            --transport "${{ matrix.transport }}" \
+            --url "${{ matrix.url }}" \
+            --container-id "$CONTAINER_ID" \
+            --out-dir "benchmark_results/${{ matrix.name }}"
+
+      - name: Collect container logs
+        if: always()
+        run: |
+          docker logs "$CONTAINER_ID" > "benchmark_results/${{ matrix.name }}/container.log" 2>&1 || true
+          docker rm -f "$CONTAINER_ID" || true
+
+      - name: Upload benchmark artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: benchmark-${{ matrix.name }}
+          path: benchmark_results/${{ matrix.name }}
+          retention-days: 30
+
+  update-readme:
+    needs: benchmark
+    if: always()
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7
+
+      - name: Download all benchmark artifacts
+        uses: actions/download-artifact@v4
+        with:
+          pattern: benchmark-*
+          path: benchmark_results
+          merge-multiple: false
+
+      - name: Flatten artifact folders
+        run: |
+          # download-artifact@v4 кладёт каждый артефакт в свою папку benchmark-<Service>/,
+          # приводим к ожидаемой структуре benchmark_results/<Service>/report.json
+          cd benchmark_results
+          for d in benchmark-*; do
+            [ -d "$d" ] || continue
+            service_name="${d#benchmark-}"
+            mkdir -p "$service_name"
+            cp -r "$d"/* "$service_name"/ 2>/dev/null || true
+            rm -rf "$d"
+          done
+          ls -la
+
+      - name: Update README.md
+        run: python3 scripts/update_readme.py
+
+      - name: Commit and push
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          if git diff --quiet README.md; then
+            echo "ℹ️ README.md не изменился, коммит не требуется."
+          else
+            git add README.md
+            git commit -m "chore: обновлены результаты stealth-бенчмарка [skip ci]"
+            git push
+          fi
