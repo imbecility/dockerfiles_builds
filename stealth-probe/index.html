@@ -27,22 +27,22 @@
 
   // --- 1. Automation object leaks (Selenium / old CDP shims) ---------------
   function detectCdpLeakKeys() {
-  var suspects = [
+  let suspects = [
     "__webdriver_evaluate", "__selenium_evaluate", "__webdriver_script_function",
     "__webdriver_script_func", "__webdriver_script_fn", "__fxdriver_evaluate",
     "__driver_unwrapped", "__webdriver_unwrapped", "__selenium_unwrapped",
     "__fxdriver_unwrapped", "__driver_evaluate", "$cdc_asdjflasutopfhvcZLmcfl_",
     "$chrome_asyncScriptInfo", "domAutomation", "domAutomationController"
   ];
-  var found = [];
+  let found = [];
   try {
-    for (var i = 0; i < suspects.length; i++) {
+    for (let i = 0; i < suspects.length; i++) {
       if (suspects[i] in window) found.push(suspects[i]);
     }
   } catch (e) {}
   try {
-    var winKeys = Object.getOwnPropertyNames(window);
-    for (var j = 0; j < winKeys.length; j++) {
+    let winKeys = Object.getOwnPropertyNames(window);
+    for (let j = 0; j < winKeys.length; j++) {
       if (winKeys[j].indexOf("cdc_") === 0 || winKeys[j].indexOf("__webdriver") === 0) {
         found.push(winKeys[j]);
       }
@@ -53,7 +53,7 @@
 
   // --- 2. Function.toString native-code spoofing ---------------------------
   function functionsLookNative() {
-    var fns = [window.alert, Function.prototype.bind, navigator.permissions ? navigator.permissions.query : null];
+    let fns = [window.alert, Function.prototype.bind, navigator.permissions ? navigator.permissions.query : null];
     return fns.every(function (f) {
       if (!f) return true;
       return safe(function () { return f.toString().indexOf("[native code]") !== -1; }, false);
@@ -63,16 +63,16 @@
   // --- 3. Canvas fingerprint sanity (blank / blocked canvas = automation tell) ---
   function canvasWorks() {
     return safe(function () {
-      var c = document.createElement("canvas");
+      let c = document.createElement("canvas");
       c.width = 220; c.height = 30;
-      var ctx = c.getContext("2d");
+      let ctx = c.getContext("2d");
       ctx.textBaseline = "top";
       ctx.font = "14px Arial";
       ctx.fillStyle = "#f60";
       ctx.fillRect(0, 0, 220, 30);
       ctx.fillStyle = "#069";
       ctx.fillText("stealth-probe 🦊 canvas", 2, 2);
-      var data = c.toDataURL();
+      let data = c.toDataURL();
       return data.length > 100 && data !== "data:,";
     }, false);
   }
@@ -80,10 +80,10 @@
   // --- 4. WebGL vendor/renderer consistency ---------------------------------
   function webglInfo() {
     return safe(function () {
-      var c = document.createElement("canvas");
-      var gl = c.getContext("webgl") || c.getContext("experimental-webgl");
+      let c = document.createElement("canvas");
+      let gl = c.getContext("webgl") || c.getContext("experimental-webgl");
       if (!gl) return { supported: false };
-      var dbg = gl.getExtension("WEBGL_debug_renderer_info");
+      let dbg = gl.getExtension("WEBGL_debug_renderer_info");
       return {
         supported: true,
         vendor: gl.getParameter(gl.VENDOR),
@@ -112,14 +112,14 @@
 
   // --- 7. Timing resolution jitter (automation frameworks sometimes clamp) --
   function timingHasJitter() {
-    var samples = [];
-    for (var i = 0; i < 20; i++) samples.push(performance.now());
-    var allRounded = samples.every(function (v) { return v === Math.floor(v); });
+    let samples = [];
+    for (let i = 0; i < 20; i++) samples.push(performance.now());
+    let allRounded = samples.every(function (v) { return v === Math.floor(v); });
     return !allRounded;
   }
 
-  var ua = navigator.userAgent || "";
-  var details = {
+  let ua = navigator.userAgent || "";
+  let details = {
     hasWebdriverTrue: navigator.webdriver === true,
     hasBotUserAgent: /HeadlessChrome|bot|crawl|spider|slimerjs|phantomjs/i.test(ua),
     hasInconsistentChromeObject: /Chrome/.test(ua) && typeof window.chrome !== "object",
@@ -137,7 +137,7 @@
     userAgent: ua
   };
 
-  var isBot = details.hasWebdriverTrue ||
+  let isBot = details.hasWebdriverTrue ||
               details.hasBotUserAgent ||
               details.hasInconsistentChromeObject ||
               details.cdpLeakKeys.length > 0 ||
@@ -145,11 +145,10 @@
               details.canvasBlocked ||
               details.hasHeadlessDefaultScreenResolution;
 
-  var result = { isBot: isBot, details: details };
-  var jsonStr = JSON.stringify(result, null, 2);
-  document.getElementById("jsonResult").textContent = jsonStr;
+  let result = { isBot: isBot, details: details };
+  document.getElementById("jsonResult").textContent = JSON.stringify(result, null, 2);
 
-  var badge = document.getElementById("badge");
+  let badge = document.getElementById("badge");
   badge.innerHTML = '<span class="badge ' + (isBot ? "bot" : "clean") + '">' +
                      (isBot ? "DETECTED AS BOT" : "CLEAN") + "</span>";
 

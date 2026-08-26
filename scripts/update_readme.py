@@ -1,11 +1,10 @@
-"""Собирает benchmark_results/<service>/report.json со всех сервисов
-и вставляет/обновляет markdown-таблицу в README.md между маркерами:
+"""
+Собирает benchmark_results/<service>/report.json со всех сервисов
+и вставляет/обновляет markdown-таблицы в README.md между маркерами:
 
     <!-- BENCHMARK_TABLE_START -->
     ...
     <!-- BENCHMARK_TABLE_END -->
-
-Если маркеров в README.md ещё нет — добавляет их в конец файла.
 """
 from __future__ import annotations
 
@@ -19,15 +18,19 @@ README_PATH = ROOT_DIR / "README.md"
 START_MARKER = "<!-- BENCHMARK_TABLE_START -->"
 END_MARKER = "<!-- BENCHMARK_TABLE_END -->"
 
-# порядок и подписи колонок для сайтов-детекторов
+# список сайтов: (нормализованный_ключ, отображаемое_имя)
 SITE_COLUMNS = [
-    ("stealth-probe", "stealth-probe"),
+    ("stealthprobe", "stealth-probe"),
     ("sannysoft", "Sannysoft"),
     ("incolumitas", "Incolumitas"),
     ("browserscan", "BrowserScan"),
     ("deviceandbrowserinfo", "DeviceAndBrowserInfo"),
-    ("recaptcha_v3", "reCAPTCHA v3"),
+    ("recaptchav3", "reCAPTCHA v3"),
 ]
+
+
+def norm(key: str) -> str:
+    return key.lower().replace("-", "").replace("_", "")
 
 
 def cell(site_result: dict | None) -> str:
@@ -38,6 +41,12 @@ def cell(site_result: dict | None) -> str:
     mark = "✅" if site_result["passed"] else "❌"
     score = site_result.get("score")
     return f"{mark} ({score})" if score is not None else mark
+
+
+def extract_ram(usage_str: str | None) -> str:
+    if not usage_str or "/" not in usage_str:
+        return usage_str or "—"
+    return usage_str.split("/")[0].strip()
 
 
 def load_reports() -> list[dict]:
@@ -54,40 +63,72 @@ def load_reports() -> list[dict]:
     return reports
 
 
-def build_table(reports: list[dict]) -> str:
+def build_markdown(reports: list[dict]) -> str:
     if not reports:
         return "_Нет данных бенчмарка. Запустите workflow «Stealth Benchmark»._"
 
-    header = ["Сервис", "Connect (ms)", "Avg Nav (ms)", "Pass rate"] + [label for _, label in SITE_COLUMNS]
-    lines = [
-        "| " + " | ".join(header) + " |",
-        "|" + "|".join(["---"] * len(header)) + "|",
+    # --- Таблица 1: Stealth Checks ---
+    h1 = ["Сервис", "Pass Rate"] + [label for _, label in SITE_COLUMNS]
+    t1_lines = [
+        "### 🕵️ Stealth & Bot-Detection",
+        "",
+        "| " + " | ".join(h1) + " |",
+        "|" + "|".join(["---"] * len(h1)) + "|",
     ]
 
     for r in reports:
-        sites_by_name = {s["site"]: s for s in r.get("sites", [])}
+        sites_map = {norm(s.get("site", "")): s for s in r.get("sites", [])}
         summary = r.get("summary", {})
-        row = [
+        passed = summary.get("passed", 0)
+        total = summary.get("total", 0)
+        rate = f"{passed}/{total} ({round(passed / total * 100)}%)" if total else "—"
+
+        row = [r.get("service", "?"), rate]
+        for key, _ in SITE_COLUMNS:
+            row.append(cell(sites_map.get(key)))
+        t1_lines.append("| " + " | ".join(row) + " |")
+
+    # --- Таблица 2: Resources & Performance ---
+    h2 = ["Сервис", "Транспорт", "Connect (ms)", "Avg Nav (ms)", "RAM (Старт)", "RAM (Пик)", "CPU (Пик)"]
+    t2_lines = [
+        "",
+        "### ⚡ Производительность и ресурсы",
+        "",
+        "| " + " | ".join(h2) + " |",
+        "|" + "|".join(["---"] * len(h2)) + "|",
+    ]
+
+    for r in reports:
+        summary = r.get("summary", {})
+        stats = r.get("container_stats", {})
+        at_connect = stats.get("at_connect", {})
+        after_run = stats.get("after_run", {})
+
+        ram_init = extract_ram(at_connect.get("mem_usage"))
+        ram_peak = extract_ram(after_run.get("mem_usage"))
+        cpu_peak = after_run.get("cpu", "—")
+
+        row2 = [
             r.get("service", "?"),
+            f"`{r.get('transport', '—')}`",
             str(r.get("connect_time_ms", "—")),
             str(summary.get("avg_nav_ms", "—")),
-            f"{summary.get('passed', 0)}/{summary.get('total', 0)}",
+            ram_init,
+            ram_peak,
+            cpu_peak,
         ]
-        for key, _ in SITE_COLUMNS:
-            row.append(cell(sites_by_name.get(key)))
-        lines.append("| " + " | ".join(row) + " |")
+        t2_lines.append("| " + " | ".join(row2) + " |")
 
-    return "\n".join(lines)
+    return "\n".join(t1_lines + t2_lines)
 
 
-def update_readme(table_md: str) -> None:
+def update_readme(md_content: str) -> None:
     if not README_PATH.exists():
-        README_PATH.write_text(f"# Результаты бенчмарка\n\n{START_MARKER}\n{table_md}\n{END_MARKER}\n",
-                                encoding="utf-8")
+        README_PATH.write_text(f"# Результаты бенчмарка\n\n{START_MARKER}\n{md_content}\n{END_MARKER}\n", encoding="utf-8")
         return
 
     content = README_PATH.read_text(encoding="utf-8")
-    block = f"{START_MARKER}\n\n## 🕵️ Результаты stealth-бенчмарка\n\n{table_md}\n\n{END_MARKER}"
+    block = f"{START_MARKER}\n\n## 📊 Результаты бенчмарка браузеров\n\n{md_content}\n\n{END_MARKER}"
 
     if START_MARKER in content and END_MARKER in content:
         pre = content.split(START_MARKER)[0]
@@ -102,9 +143,9 @@ def update_readme(table_md: str) -> None:
 
 def main() -> None:
     reports = load_reports()
-    table_md = build_table(reports)
-    update_readme(table_md)
-    print(f"README.md обновлён ({len(reports)} сервисов).")
+    md_content = build_markdown(reports)
+    update_readme(md_content)
+    print(f"README.md успешно обновлён ({len(reports)} сервисов).")
 
 
 if __name__ == "__main__":
