@@ -74,14 +74,20 @@ jobs:
           echo "IMAGE=$IMAGE" >> $GITHUB_ENV
           docker pull "$IMAGE"
 
-      # ВАЖНО: только для WS-транспорта (Camoufox). Playwright-сервер жёстко проверяет
+      - name: Run container
+        run: |
+          CID=$(docker run -d ${{ matrix.flags }} -p ${{ matrix.port }}:${{ matrix.port }} "$IMAGE")
+          echo "CONTAINER_ID=$CID" >> $GITHUB_ENV
+          echo "ℹ️ контейнер запущен: $CID"
+
+      # ВАЖНО: только для WS-транспорта (Camoufox). Playwright-сервер проверяет
       # совпадение версий клиент/сервер: расхождение = "428 Precondition Required".
-      # CDP-транспорт (Clearcote/CloakBrowser) этой проверки не имеет.
-      - name: Sync Playwright Version With Image
+      # Определяем версию напрямую из WS-хендшейка запущенного контейнера.
+      - name: Sync Playwright Version With Server
         if: ${{ matrix.transport == 'ws' }}
         run: |
-          IMAGE_PW_VERSION=$(cat scripts/sync_playwright.py | docker run -i --rm "$IMAGE" python - 2>/dev/null || true)
-          echo "ℹ️ результат детекции версии из образа: '$IMAGE_PW_VERSION'"
+          IMAGE_PW_VERSION=$(python3 scripts/sync_playwright.py --url "${{ matrix.url }}" 2>/dev/null || true)
+          echo "ℹ️ результат детекции версии с сервера: '$IMAGE_PW_VERSION'"
           if [ -n "$IMAGE_PW_VERSION" ]; then
             PW_MAJOR_MINOR=$(echo "$IMAGE_PW_VERSION" | grep -oE '[0-9]+\.[0-9]+' | head -n1)
             CURRENT_PW_VERSION=$(python3 -c "import playwright; print(playwright.__version__)" 2>/dev/null || true)
@@ -95,12 +101,6 @@ jobs:
           else
             echo "ℹ️ специфичная версия Playwright не обнаружена, используется установленная по умолчанию."
           fi
-
-      - name: Run container
-        run: |
-          CID=$(docker run -d ${{ matrix.flags }} -p ${{ matrix.port }}:${{ matrix.port }} "$IMAGE")
-          echo "CONTAINER_ID=$CID" >> $GITHUB_ENV
-          echo "ℹ️ контейнер запущен: $CID"
 
       - name: Run benchmark
         run: |
