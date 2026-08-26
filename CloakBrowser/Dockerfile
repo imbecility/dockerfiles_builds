@@ -68,8 +68,9 @@ exec /app/.venv/bin/cloakserve \
     --log-level=3 \
     --no-sandbox \
     --disable-setuid-sandbox \
-    --disable-gpu \
-    --disable-vulkan \
+    --use-gl=angle \
+    --use-angle=swiftshader \
+    --enable-unsafe-swiftshader \
     --window-size=1920,1080 \
     --start-maximized \
     --headless=false \

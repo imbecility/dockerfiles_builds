@@ -27,26 +27,29 @@
 
   // --- 1. Automation object leaks (Selenium / old CDP shims) ---------------
   function detectCdpLeakKeys() {
-    var suspects = [
-      "__webdriver_evaluate", "__selenium_evaluate", "__webdriver_script_function",
-      "__webdriver_script_func", "__webdriver_script_fn", "__fxdriver_evaluate",
-      "__driver_unwrapped", "__webdriver_unwrapped", "__selenium_unwrapped",
-      "__fxdriver_unwrapped", "__driver_evaluate", "__selenium_unwrapped",
-      "$cdc_asdjflasutopfhvcZLmcfl_", "$chrome_asyncScriptInfo", "domAutomation",
-      "domAutomationController"
-    ];
-    var found = [];
+  var suspects = [
+    "__webdriver_evaluate", "__selenium_evaluate", "__webdriver_script_function",
+    "__webdriver_script_func", "__webdriver_script_fn", "__fxdriver_evaluate",
+    "__driver_unwrapped", "__webdriver_unwrapped", "__selenium_unwrapped",
+    "__fxdriver_unwrapped", "__driver_evaluate", "$cdc_asdjflasutopfhvcZLmcfl_",
+    "$chrome_asyncScriptInfo", "domAutomation", "domAutomationController"
+  ];
+  var found = [];
+  try {
     for (var i = 0; i < suspects.length; i++) {
       if (suspects[i] in window) found.push(suspects[i]);
     }
+  } catch (e) {}
+  try {
     var winKeys = Object.getOwnPropertyNames(window);
     for (var j = 0; j < winKeys.length; j++) {
       if (winKeys[j].indexOf("cdc_") === 0 || winKeys[j].indexOf("__webdriver") === 0) {
         found.push(winKeys[j]);
       }
     }
-    return found;
-  }
+  } catch (e) {}
+  return found;
+}
 
   // --- 2. Function.toString native-code spoofing ---------------------------
   function functionsLookNative() {
