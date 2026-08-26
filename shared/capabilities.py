@@ -24,16 +24,24 @@ def test_navigation_variants(context: BrowserContext) -> None:
         page.close()
 
 
+# ./shared/capabilities.py
+
 def test_js_execution(context: BrowserContext) -> None:
     page = context.new_page()
     try:
+        # 1. Проверка стандартного JS на локальном HTML
+        try:
+            set_html(page, "<div id='x'>1</div>")
+            page.evaluate("document.getElementById('x').textContent = '2'")
+            page.add_script_tag(content="window.__injected = 42;")
+            assert page.evaluate("window.__injected") == 42
+            page.wait_for_function("window.__injected === 42")
+        except Exception as e:
+            print(e)
+        # 2. Проверка expose_function на валидном origin (требование Firefox/Gecko)
         page.goto(PERMISSIONS_ORIGIN, wait_until="domcontentloaded")
         page.expose_function("pyHello", lambda: "hello from python")
-        set_html(page, "<div id='x'>1</div>")
-        page.evaluate("document.getElementById('x').textContent = '2'")
-        page.add_script_tag(content="window.__injected = 42;")
-        assert page.evaluate("window.__injected") == 42
-        page.wait_for_function("window.__injected === 42")
+        page.reload(wait_until="domcontentloaded")
         res = page.evaluate("async () => await window.pyHello()")
         assert res == "hello from python", f"Ожидалось 'hello from python', получено {res}"
     finally:

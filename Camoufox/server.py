@@ -26,7 +26,8 @@ if __name__ == "__main__":
         "i_know_what_im_doing": True,
         "config": {
             "forceScopeAccess": True,
-            "network.trr.mode": 5  # отключение DoH в Gecko
+            "network.trr.mode": 5,           # отключение DoH
+            "network.dns.disableIPv6": True,  # отключение ожидания IPv6
         }
     }
 

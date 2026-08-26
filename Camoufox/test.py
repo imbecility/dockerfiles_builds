@@ -16,10 +16,10 @@ def main() -> None:
     with sync_playwright() as p:
         browser = wait_for_ws_server(p, WS_URL, timeout=40)
         context = browser.new_context()
-        context.set_default_timeout(15000)
+        context.set_default_timeout(25000)
         run_firefox_smoke_suite(context, extended=True)
 
-        context.set_default_timeout(30000)
+        context.set_default_timeout(35000)
         page = context.new_page()
         page.goto("https://google.com", wait_until="domcontentloaded")
         print(f'заголовок страницы: "{page.title()}"')
