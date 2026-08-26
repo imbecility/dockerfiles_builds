@@ -37,7 +37,7 @@ jobs:
           if [ -z "$INPUT_SERVICE" ] || [ "$INPUT_SERVICE" = "all" ]; then
             echo "matrix=$(echo "$ALL" | tr -d '\n' | tr -s ' ')" >> $GITHUB_OUTPUT
           else
-            FILTERED=$(echo "$ALL" | python3 -c "import json, sys, os;data = json.load(sys.stdin);name = os.environ['INPUT_SERVICE'];print(json.dumps([d for d in data if d['name'] == name]))")
+            FILTERED=$(echo "$ALL" | python3 -c "import json, sys, os; data = json.load(sys.stdin); name = os.environ['INPUT_SERVICE']; print(json.dumps([d for d in data if d['name'] == name]))")
             echo "matrix=$FILTERED" >> $GITHUB_OUTPUT
           fi
 
@@ -73,6 +73,28 @@ jobs:
           IMAGE=$(echo "${{ env.REGISTRY }}/${{ github.repository }}/${{ matrix.name }}:latest" | tr '[:upper:]' '[:lower:]')
           echo "IMAGE=$IMAGE" >> $GITHUB_ENV
           docker pull "$IMAGE"
+
+      # ВАЖНО: только для WS-транспорта (Camoufox). Playwright-сервер жёстко проверяет
+      # совпадение версий клиент/сервер: расхождение = "428 Precondition Required".
+      # CDP-транспорт (Clearcote/CloakBrowser) этой проверки не имеет.
+      - name: Sync Playwright Version With Image
+        if: ${{ matrix.transport == 'ws' }}
+        run: |
+          IMAGE_PW_VERSION=$(cat scripts/sync_playwright.py | docker run -i --rm "$IMAGE" python - 2>/dev/null || true)
+          echo "ℹ️ результат детекции версии из образа: '$IMAGE_PW_VERSION'"
+          if [ -n "$IMAGE_PW_VERSION" ]; then
+            PW_MAJOR_MINOR=$(echo "$IMAGE_PW_VERSION" | grep -oE '[0-9]+\.[0-9]+' | head -n1)
+            CURRENT_PW_VERSION=$(python3 -c "import playwright; print(playwright.__version__)" 2>/dev/null || true)
+            echo "ℹ️ целевая версия Playwright: $PW_MAJOR_MINOR (текущая на раннере: $CURRENT_PW_VERSION)"
+            if [[ "$CURRENT_PW_VERSION" != "$PW_MAJOR_MINOR"* ]]; then
+              echo "⚠️ версии различаются: переустановка Playwright на раннере..."
+              pip install "playwright~=${PW_MAJOR_MINOR}.0"
+            else
+              echo "ℹ️ версии Playwright совпадают."
+            fi
+          else
+            echo "ℹ️ специфичная версия Playwright не обнаружена, используется установленная по умолчанию."
+          fi
 
       - name: Run container
         run: |
