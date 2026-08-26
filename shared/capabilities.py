@@ -24,16 +24,26 @@ def test_navigation_variants(context: BrowserContext) -> None:
         page.close()
 
 
+# ./shared/capabilities.py (замените только эту функцию)
+
 def test_js_execution(context: BrowserContext) -> None:
     page = context.new_page()
     try:
+        # 1. Переходим на нормальный origin, чтобы expose_function сработала
         page.goto(PERMISSIONS_ORIGIN, wait_until="domcontentloaded")
         page.expose_function("pyHello", lambda: "hello from python")
-        set_html(page, "<div id='x'>1</div>")
+
+        # 2. Не используем set_html (он делает goto на data: URL, что стирает контекст window).
+        # Инжектируем элементы прямо в текущий DOM:
+        page.evaluate("document.body.innerHTML = '<div id=\"x\">1</div>'")
         page.evaluate("document.getElementById('x').textContent = '2'")
-        page.add_script_tag(content="window.__injected = 42;")
+
+        # 3. Проверка инъекции переменных
+        page.evaluate("window.__injected = 42;")
         assert page.evaluate("window.__injected") == 42
         page.wait_for_function("window.__injected === 42")
+
+        # 4. Проверка вызова exposed функции
         res = page.evaluate("async () => await window.pyHello()")
         assert res == "hello from python", f"Ожидалось 'hello from python', получено {res}"
     finally:
