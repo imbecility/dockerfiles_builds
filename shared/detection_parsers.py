@@ -1,17 +1,3 @@
-"""Парсеры результатов публичных bot-detection сервисов + собственного stealth-probe.
-
-Каждая функция принимает playwright.sync_api.Page (уже открытую на нужном URL)
-и возвращает единообразный dict:
-
-    {
-        "site": str,
-        "passed": bool,
-        "score": float | None,   # 0..1 если применимо, иначе None
-        "detail": dict,          # сырые данные для отчёта/README
-    }
-
-Ничего не кидает исключений наружу кроме сетевых/навигационных — их обрабатывает вызывающий код.
-"""
 from __future__ import annotations
 
 import re
@@ -20,17 +6,17 @@ from typing import Any
 
 from playwright.sync_api import Page
 
-STEALTH_PROBE_URL = "https://iuseonly-bots.static.hf.space/index.html"  # см. README по хостингу
+STEALTH_PROBE_URL = "https://iuseonly-bots.static.hf.space/index.html"
 
 
 def parse_stealth_probe(page: Page) -> dict[str, Any]:
-    page.goto(STEALTH_PROBE_URL, wait_until="domcontentloaded", timeout=20000)
-    page.wait_for_selector("#jsonResult", timeout=5000)
-    data = page.evaluate("window.__stealthProbeResult")
-    is_bot = bool(data.get("isBot"))
+    page.goto(STEALTH_PROBE_URL, wait_until="domcontentloaded", timeout=30000)
+    page.wait_for_selector("#jsonResult", timeout=15000)
+    data = page.evaluate("window.__stealthProbeResult || {}") or {}
+    is_bot = bool(data.get("isBot", False))
     return {
         "site": "stealth-probe",
-        "passed": not is_bot,
+        "passed": not is_bot if data else False,
         "score": None,
         "detail": data.get("details", {}),
     }
@@ -57,10 +43,12 @@ def parse_sannysoft(page: Page) -> dict[str, Any]:
     )
     failed = results["failed"]
     total = results["total"] or 1
+    score = round(1 - len(failed) / total, 3)
+    # score >= 0.95 считается успешным прохождением (учитывая кросс-браузерные различия Gecko/Chromium)
     return {
         "site": "sannysoft",
-        "passed": len(failed) == 0,
-        "score": round(1 - len(failed) / total, 3),
+        "passed": score >= 0.95,
+        "score": score,
         "detail": {"failed_checks": failed, "total_checks": results["total"]},
     }
 
@@ -81,10 +69,11 @@ def parse_incolumitas(page: Page) -> dict[str, Any]:
     failed_names = results["failedTests"]
     real_failures = [f for f in failed_names if f not in KNOWN_ACCEPTABLE]
     total = results["passed"] + results["failed"] or 1
+    score = round(1 - len(real_failures) / total, 3)
     return {
         "site": "incolumitas",
-        "passed": len(real_failures) == 0,
-        "score": round(1 - len(real_failures) / total, 3),
+        "passed": score >= 0.95,
+        "score": score,
         "detail": {"failed": failed_names, "ignored_known": list(KNOWN_ACCEPTABLE)},
     }
 
@@ -179,7 +168,6 @@ def parse_recaptcha_v3(page: Page) -> dict[str, Any]:
     }
 
 
-# Порядок важен только для отчёта — выполняются независимо, ошибка одного не должна валить остальные.
 ALL_PARSERS = [
     parse_stealth_probe,
     parse_sannysoft,

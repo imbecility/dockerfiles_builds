@@ -51,10 +51,12 @@ def docker_stats(container_id: str | None) -> dict:
 
 
 def run_parser_safe(parser, page, out_dir: Path) -> dict:
-    name = parser.__name__.replace("parse_", "")
+    name = parser.__name__.replace("parse_", "").replace("_", "-")
     started = time.time()
     try:
         result = parser(page)
+        # унификация имени
+        result["site"] = result.get("site", name).replace("_", "-")
         elapsed_ms = round((time.time() - started) * 1000)
         result["elapsed_ms"] = elapsed_ms
         result["error"] = None
