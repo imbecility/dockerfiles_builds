@@ -143,8 +143,8 @@ jobs:
             PACKAGES=$(grep -vE '^\s*(#|$)' "$DEPS_FILE" | tr '\n' ' ' | xargs)
             if [ -n "$PACKAGES" ]; then
               echo "устанавливаем на раннер: $PACKAGES"
-              sudo apt-get update
-              sudo apt-get install -y --no-install-recommends $PACKAGES
+              sudo apt-get update >/dev/null
+              sudo apt-get install -y --no-install-recommends $PACKAGES >/dev/null
             else
               echo "⚠️ файл найден, но пуст (только комментарии) — пропускаем."
             fi

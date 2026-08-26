@@ -6,6 +6,11 @@ if __name__ == "__main__":
     port = int(os.getenv("PORT", "7861"))
     ws_path = os.getenv("WS_PATH", "camoufox")
 
+    # флаги humanize и geoip берутся из env (по умолчанию выключены для скорости и стабильности)
+    humanize_env = os.getenv("HUMANIZE", "false").lower()
+    humanize = float(humanize_env) if humanize_env.replace(".", "", 1).isdigit() else (humanize_env in ("1", "true", "yes"))
+    enable_geoip = os.getenv("GEOIP", "false").lower() in ("1", "true", "yes")
+
     server_kwargs = {
         "host": "0.0.0.0",
         "port": port,
@@ -13,13 +18,13 @@ if __name__ == "__main__":
         "headless": False,
         "os": ["windows", "macos"],
         "screen": Screen(max_width=1920, max_height=1080),
-        "humanize": 1.5,
-        "geoip": True,
+        "humanize": humanize,
+        "geoip": enable_geoip,
         "disable_coop": True,
         "allow_webgl": True,
         "enable_cache": True,
         "i_know_what_im_doing": True,
-         "config": {
+        "config": {
             "forceScopeAccess": True,
             "network.trr.mode": 5  # отключение DoH в Gecko
         }

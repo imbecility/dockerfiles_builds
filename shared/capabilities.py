@@ -27,13 +27,15 @@ def test_navigation_variants(context: BrowserContext) -> None:
 def test_js_execution(context: BrowserContext) -> None:
     page = context.new_page()
     try:
+        page.goto(PERMISSIONS_ORIGIN, wait_until="domcontentloaded")
+        page.expose_function("pyHello", lambda: "hello from python")
         set_html(page, "<div id='x'>1</div>")
         page.evaluate("document.getElementById('x').textContent = '2'")
         page.add_script_tag(content="window.__injected = 42;")
         assert page.evaluate("window.__injected") == 42
         page.wait_for_function("window.__injected === 42")
-        page.expose_function("pyHello", lambda: "hello from python")
-        assert page.evaluate("async () => await window.pyHello()") == "hello from python"
+        res = page.evaluate("async () => await window.pyHello()")
+        assert res == "hello from python", f"Ожидалось 'hello from python', получено {res}"
     finally:
         page.close()
 
@@ -196,7 +198,8 @@ def test_downloads_and_uploads(context: BrowserContext) -> None:
             + '" download="hello.txt">download</a><input type="file" id="up">',
         )
         with page.expect_download() as download_info:
-            page.click("#dl")
+            # force=True гарантирует клик без задержек анимации курсора
+            page.click("#dl", force=True)
         download_info.value.save_as(str(ASSETS_DIR / "hello.txt"))
 
         upload_source = ASSETS_DIR / "upload_me.txt"
