@@ -19,10 +19,12 @@ RUN apt-get update >/dev/null && apt-get install -y --no-install-recommends \
     /app/chrome-extensions.sh && rm /app/chrome-extensions.sh && \
     rm -rf /var/lib/apt/lists/*
 
-# Явно копируем всё содержимое /opt/tilion/ из официального образа
-COPY --from=fortress_upstream --chown=tilion:tilion /opt/tilion/ /opt/tilion/
+# Копируем всё содержимое /opt/ из апстрима напрямую в /opt/tilion/
+COPY --from=fortress_upstream --chown=tilion:tilion /opt/ /opt/tilion/
 
-RUN chmod -R 755 /opt/tilion && \
+RUN if [ -d "/opt/tilion/tilion-fortress" ]; then cp -rn /opt/tilion/tilion-fortress/* /opt/tilion/; fi && \
+    if [ -d "/opt/tilion/tilion" ] && [ -f "/opt/tilion/tilion/tilion" ]; then cp -rn /opt/tilion/tilion/* /opt/tilion/; fi && \
+    chmod -R 755 /opt/tilion && \
     chown -R tilion:tilion /home/tilion /tmp/tilion-profile /app/extensions /opt/tilion && \
     chmod -R 777 /tmp/tilion-profile /home/tilion
 
