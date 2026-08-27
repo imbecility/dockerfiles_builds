@@ -27,28 +27,69 @@ RUN apt-get update >/dev/null && apt-get install -y --no-install-recommends \
     /app/chrome-extensions.sh && rm /app/chrome-extensions.sh && \
     rm -rf /var/lib/apt/lists/*
 
-COPY serve.py /app/serve.py
-
 COPY --chmod=755 <<-"EOF" /app/start.sh
 #!/bin/bash
 set -e
 
-# 1. Запуск изолированного DNS sinkhole
 bash /app/start_dns.sh
 touch /.dockerenv
-export HTTPX_LOG_LEVEL=warning
 
 PORT="${PORT:-9222}"
-FORTRESS_INTERNAL_PORT="${FORTRESS_INTERNAL_PORT:-9223}"
-export FORTRESS_INTERNAL_PORT
+INTERNAL_PORT="${FORTRESS_INTERNAL_PORT:-9223}"
+
+EXT_ARGS=""
+if [ -d "/app/extensions" ]; then
+  EXT_LIST=$(find /app/extensions -mindepth 1 -maxdepth 1 -type d | paste -sd "," -)
+  if [ -n "$EXT_LIST" ]; then
+    EXT_ARGS="--load-extension=$EXT_LIST --disable-extensions-except=$EXT_LIST"
+    echo "[fortress] Loading extensions: $EXT_LIST"
+  fi
+fi
 
 echo -e "\n==================================\nstarting fortress chromium cdp server...\nconnect:\nwith sync_playwright() as p:\n    browser = p.chromium.connect_over_cdp('http://localhost:${PORT}')\n==================================\n"
 
-# 2. Запускаем socat-мост в фоне (0.0.0.0:9222 -> 127.0.0.1:9223) как задумано автором
-socat TCP-LISTEN:${PORT},fork,reuseaddr,bind=0.0.0.0 TCP:127.0.0.1:${FORTRESS_INTERNAL_PORT} &
+# 1. Запуск Fortress в фоне
+/opt/tilion/tilion \
+  --headless=new \
+  --no-sandbox \
+  --disable-dev-shm-usage \
+  --enable-unsafe-swiftshader \
+  --remote-debugging-port="$INTERNAL_PORT" \
+  --user-data-dir=/tmp/tilion-profile \
+  $EXT_ARGS \
+  $FORTRESS_EXTRA_ARGS &
+CHROME_PID=$!
 
-# 3. Запуск браузера
-exec python /app/serve.py
+# 2. Ожидание поднятия порта (с проверкой на смерть процесса!)
+echo "[fortress] Waiting for internal CDP port $INTERNAL_PORT..."
+READY=0
+for _ in $(seq 1 80); do
+  # Если tilion упал, убиваем контейнер сразу с ошибкой
+  if ! kill -0 $CHROME_PID 2>/dev/null; then
+    echo "[fortress] ERROR: Chromium process died unexpectedly during startup!"
+    exit 1
+  fi
+  if python3 -c "import socket; s=socket.socket(); s.settimeout(0.5); s.connect(('127.0.0.1', $INTERNAL_PORT)); s.close()" 2>/dev/null; then
+    READY=1
+    break
+  fi
+  sleep 0.5
+done
+
+if [ "$READY" -eq 0 ]; then
+  echo "[fortress] ERROR: Timeout waiting for CDP port."
+  exit 1
+fi
+
+echo "[fortress] CDP ready, mapping 0.0.0.0:$PORT -> 127.0.0.1:$INTERNAL_PORT"
+# 3. Мост запускаем в фоне
+socat TCP-LISTEN:"$PORT",fork,reuseaddr TCP:127.0.0.1:"$INTERNAL_PORT" &
+SOCAT_PID=$!
+
+# 4. Блокируем скрипт на процессе браузера. Если он упадет, скрипт завершится.
+wait $CHROME_PID
+echo "[fortress] Chromium process exited."
+kill $SOCAT_PID 2>/dev/null || true
 EOF
 
 EXPOSE ${PORT}
