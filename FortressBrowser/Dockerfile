@@ -19,7 +19,7 @@ RUN apt-get update >/dev/null && apt-get install -y --no-install-recommends \
 # уже стрипнутый и обрезанный по локалям бандл — берём как есть, повторно стрипать не нужно
 COPY --from=fortress_upstream --chown=tilion:tilion / /
 
-RUN ls && ls /opt/
+RUN ls /opt/tillion
 
 COPY --chmod=755 <<-"EOF" /app/start.sh
 #!/bin/bash
