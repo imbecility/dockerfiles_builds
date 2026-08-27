@@ -1,15 +1,8 @@
 # ./FortressBrowser/serve.py
-"""
-Fortress CDP-server launcher:
-Запускает Tilion Fortress со встроенной персоной, поддержкой DoH-less DNS sinkhole,
-установленными расширениями и публикацией внешнего DevTools/CDP порта через socat.
-"""
 import os
-import subprocess
 from pathlib import Path
 
 INTERNAL_PORT = os.environ.get("FORTRESS_INTERNAL_PORT", "9223")
-EXTERNAL_PORT = os.environ.get("PORT", "9222")
 PROFILE_DIR = os.environ.get("FORTRESS_PROFILE_DIR", "/tmp/tilion-profile")
 EXTENSIONS_DIR = os.environ.get("EXTENSIONS_DIR", "/app/extensions")
 TILION_BIN = "/opt/tilion/tilion"
@@ -36,8 +29,10 @@ ext_paths = []
 if Path(EXTENSIONS_DIR).exists():
     ext_paths = [str(p) for p in Path(EXTENSIONS_DIR).iterdir() if p.is_dir()]
 
+# Флаг --headless=new обязателен, Fortress работает скрытно именно в этом режиме
 cmd = [
     TILION_BIN,
+    "--headless=new",
     "--no-sandbox",
     "--disable-dev-shm-usage",
     "--enable-unsafe-swiftshader",
@@ -54,16 +49,9 @@ if ext_paths:
     ])
     print(f"[fortress] Загружено расширений: {len(ext_paths)}", flush=True)
 
-extra_args = os.environ.get("FORTRESS_EXTRA_ARGS", "").split()
-cmd.extend(extra_args)
+extra_args = os.environ.get("FORTRESS_EXTRA_ARGS", "")
+if extra_args:
+    cmd.extend(extra_args.split())
 
-# Запуск socat-моста (0.0.0.0:9222 -> 127.0.0.1:9223)
-subprocess.Popen([
-    "socat",
-    f"TCP-LISTEN:{EXTERNAL_PORT},fork,reuseaddr,bind=0.0.0.0",
-    f"TCP:127.0.0.1:{INTERNAL_PORT}"
-])
-
-print(f"[fortress] Запуск Chromium CDP сервера на 0.0.0.0:{EXTERNAL_PORT} (внутренний порт {INTERNAL_PORT})...", flush=True)
-# os.execv наследовал бы текущий os.environ автоматически
+print(f"[fortress] Запуск Chromium CDP сервера (внутренний порт {INTERNAL_PORT})...", flush=True)
 os.execv(TILION_BIN, cmd)
