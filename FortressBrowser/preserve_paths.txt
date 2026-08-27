@@ -9,11 +9,11 @@
 # каталог, в который cloakbrowser скачивает реальный Chromium-бинарник
 # (ensure_binary() в Dockerfile) — монолит, лучше не дробить по файлам
 
-/root/.cache
-/root/.tilion
-/app/extensions
+# монолитный бандл движка — уже пре-оптимизирован апстримом, дробить не нужно
+/opt/tilion
+/home/tilion
+
 /usr/sbin/dnsmasq
-/usr/sbin/gosu
 /etc/dnsmasq.conf
 /etc/dnsmasq.hosts
 /app/start_dns.sh
