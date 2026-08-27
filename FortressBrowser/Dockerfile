@@ -17,12 +17,13 @@ RUN apt-get update >/dev/null && apt-get install -y --no-install-recommends \
       libx11-6 libx11-xcb1 libxcb1 libxext6 libxrender1 libxi6 libxtst6 \
       libexpat1 libdbus-1-3 libgl1-mesa-dri libegl-mesa0 >/dev/null && \
     pip install --no-cache-dir tilion-fortress >/dev/null && \
-    (python3 -c "from tilion_fortress import Fortress; f = Fortress(); f.start(); f.stop()" 2>/dev/null || true) && \
-    find /root/.cache/tilion-fortress -type d -name "linux-x64" -exec ln -sf . {}/tilion-fortress \; 2>/dev/null || true && \
     /app/chrome-extensions.sh && rm /app/chrome-extensions.sh && \
     rm -rf /var/lib/apt/lists/*
 
 COPY serve.py /app/serve.py
+
+# Предварительно скачиваем бинарники прямо в Docker-слой
+RUN python3 /app/serve.py --download-only
 
 COPY --chmod=755 <<-"EOF" /app/start.sh
 #!/bin/bash
