@@ -1,6 +1,6 @@
 # syntax=docker/dockerfile:1
 ARG BASE_IMAGE=base:latest
-ARG FORTRESS_IMAGE=tilion/fortress:151.0.7908.0
+ARG FORTRESS_IMAGE=tilion/fortress:latest
 
 # официальный образ — только как источник для COPY --from, сам по себе никуда не идёт
 FROM ${FORTRESS_IMAGE} AS fortress_upstream
