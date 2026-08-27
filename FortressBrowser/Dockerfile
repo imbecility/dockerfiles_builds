@@ -19,14 +19,24 @@ RUN apt-get update >/dev/null && apt-get install -y --no-install-recommends \
     /app/chrome-extensions.sh && rm /app/chrome-extensions.sh && \
     rm -rf /var/lib/apt/lists/*
 
-# Копируем всё содержимое /opt/ из апстрима напрямую в /opt/tilion/
-COPY --from=fortress_upstream --chown=tilion:tilion /opt/ /opt/tilion/
+# Копируем /opt из upstream во временную директорию
+COPY --from=fortress_upstream /opt /tmp/upstream_opt
 
-RUN if [ -d "/opt/tilion/tilion-fortress" ]; then cp -rn /opt/tilion/tilion-fortress/* /opt/tilion/; fi && \
-    if [ -d "/opt/tilion/tilion" ] && [ -f "/opt/tilion/tilion/tilion" ]; then cp -rn /opt/tilion/tilion/* /opt/tilion/; fi && \
+# Раскладываем бинарники строго в /opt/tilion/ без лишней вложенности папок
+RUN rm -rf /opt/tilion && \
+    mkdir -p /opt/tilion && \
+    if [ -d "/tmp/upstream_opt/tilion" ]; then \
+        cp -a /tmp/upstream_opt/tilion/* /opt/tilion/; \
+    elif [ -d "/tmp/upstream_opt/tilion-fortress" ]; then \
+        cp -a /tmp/upstream_opt/tilion-fortress/* /opt/tilion/; \
+    else \
+        cp -a /tmp/upstream_opt/* /opt/tilion/; \
+    fi && \
+    rm -rf /tmp/upstream_opt && \
     chmod -R 755 /opt/tilion && \
     chown -R tilion:tilion /home/tilion /tmp/tilion-profile /app/extensions /opt/tilion && \
-    chmod -R 777 /tmp/tilion-profile /home/tilion
+    chmod -R 777 /tmp/tilion-profile /home/tilion && \
+    ls -la /opt/tilion
 
 COPY --chmod=755 <<-"EOF" /app/start.sh
 #!/bin/bash
