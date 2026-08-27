@@ -14,13 +14,16 @@ RUN apt-get update >/dev/null && apt-get install -y --no-install-recommends \
     libx11-6 libx11-xcb1 libxcb1 libxext6 libxrender1 libxi6 libxtst6 \
     libexpat1 libdbus-1-3 libgl1-mesa-dri libegl-mesa0 >/dev/null && \
     useradd -m -u 1000 tilion && \
-    mkdir -p /home/tilion /tmp/tilion-profile && \
+    mkdir -p /home/tilion /tmp/tilion-profile /opt/tilion && \
     pip install --no-cache-dir tilion-fortress >/dev/null && \
     /app/chrome-extensions.sh && rm /app/chrome-extensions.sh && \
     rm -rf /var/lib/apt/lists/*
 
-COPY --from=fortress_upstream --chown=tilion:tilion /opt/ /opt/
-RUN chown -R tilion:tilion /home/tilion /tmp/tilion-profile /app/extensions && \
+# Явно копируем всё содержимое /opt/tilion/ из официального образа
+COPY --from=fortress_upstream --chown=tilion:tilion /opt/tilion/ /opt/tilion/
+
+RUN chmod -R 755 /opt/tilion && \
+    chown -R tilion:tilion /home/tilion /tmp/tilion-profile /app/extensions /opt/tilion && \
     chmod -R 777 /tmp/tilion-profile /home/tilion
 
 COPY --chmod=755 <<-"EOF" /app/start.sh
@@ -42,7 +45,7 @@ if [ -d "/app/extensions" ]; then
   fi
 fi
 
-# 2. Запуск Fortress с логированием в stdout и файл
+# 2. Запуск Fortress от пользователя tilion
 echo "[fortress] Запуск Chromium процесса..."
 gosu tilion /opt/tilion/tilion \
     --headless=new \
