@@ -8,13 +8,15 @@ ENV PORT=9222 \
 
 WORKDIR /app
 
-# Устанавливаем системные зависимости по спецификации автора
+# Устанавливаем полный комплект библиотек для headless Chromium + SwiftShader ANGLE
 RUN apt-get update >/dev/null && apt-get install -y --no-install-recommends \
       binutils socat unzip gosu \
       libnss3 libnspr4 libatk1.0-0 libatk-bridge2.0-0 libcups2 libdrm2 \
       libxkbcommon0 libxcomposite1 libxdamage1 libxfixes3 libxrandr2 libgbm1 \
       libpango-1.0-0 libcairo2 libasound2 libxshmfence1 libglib2.0-0 \
-      libvulkan1 mesa-vulkan-drivers fontconfig ca-certificates >/dev/null && \
+      libvulkan1 mesa-vulkan-drivers fontconfig ca-certificates \
+      libx11-6 libx11-xcb1 libxcb1 libxext6 libxrender1 libxi6 libxtst6 \
+      libexpat1 libdbus-1-3 libgl1-mesa-dri libegl-mesa0 >/dev/null && \
     pip install --no-cache-dir tilion-fortress >/dev/null && \
     useradd -m -u 1000 tilion && \
     mkdir -p /opt/tilion /home/tilion/.cache /tmp/tilion-profile && \
@@ -49,22 +51,39 @@ if [ -d "/app/extensions" ]; then
   fi
 fi
 
-# 2. Запуск Fortress от непривилегированного пользователя tilion
+# 2. Запуск Fortress от пользователя tilion с прямым выводом stdout/stderr в консоль контейнера
 gosu tilion /opt/tilion/tilion \
   --headless=new \
   --no-sandbox \
+  --disable-dev-shm-usage \
   --enable-unsafe-swiftshader \
   --remote-debugging-port="$INTERNAL" \
+  --remote-allow-origins="*" \
   --user-data-dir=/tmp/tilion-profile \
   $EXT_ARGS &
 CHROME_PID=$!
 trap 'kill "$CHROME_PID" 2>/dev/null || true' TERM INT
 
-# 3. Нативная проверка доступности сокета через bash /dev/tcp
-for _ in $(seq 1 80); do
-  if (exec 3<>"/dev/tcp/127.0.0.1/$INTERNAL") 2>/dev/null; then exec 3>&-; break; fi
+# 3. Мгновенная проверка смерти процесса на каждой итерации
+READY=0
+for i in $(seq 1 40); do
+  if ! kill -0 $CHROME_PID 2>/dev/null; then
+    echo "[fortress] FATAL: Chromium process died during startup (iteration $i)!" >&2
+    exit 1
+  fi
+  if (exec 3<>"/dev/tcp/127.0.0.1/$INTERNAL") 2>/dev/null; then
+    exec 3>&-
+    READY=1
+    echo "[fortress] CDP ready on 127.0.0.1:$INTERNAL"
+    break
+  fi
   sleep 0.5
 done
+
+if [ "$READY" -ne 1 ]; then
+  echo "[fortress] FATAL: CDP endpoint did not open on 127.0.0.1:$INTERNAL within 20s" >&2
+  exit 1
+fi
 
 # 4. Проксирование внешнего порта на внутренний через socat
 exec socat TCP-LISTEN:"$EXTERNAL",fork,reuseaddr,bind=0.0.0.0 TCP:127.0.0.1:"$INTERNAL"
