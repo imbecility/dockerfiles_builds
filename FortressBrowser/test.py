@@ -32,5 +32,4 @@ def main() -> None:
 
 
 if __name__ == "__main__":
-    sys.exit(0)
-    # run_main(main)
+    run_main(main)

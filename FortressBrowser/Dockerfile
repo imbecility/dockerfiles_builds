@@ -22,7 +22,7 @@ COPY --from=fortress_upstream --chown=tilion:tilion /opt/ /opt/
 COPY --chmod=755 <<-"EOF" /app/start.sh
 #!/bin/bash
 set -e
-sudo bash /app/start_dns.sh
+bash /app/start_dns.sh
 
 INTERNAL=9223
 PORT="${PORT:-9222}"
