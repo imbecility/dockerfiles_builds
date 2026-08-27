@@ -22,17 +22,14 @@ RUN apt-get update >/dev/null && apt-get install -y --no-install-recommends \
 # Копируем /opt из upstream во временную директорию
 COPY --from=fortress_upstream /opt /tmp/upstream_opt
 
-# Раскладываем бинарники строго в /opt/tilion/ без лишней вложенности папок
+# Динамически находим директорию с бинарником chrome и переносим всё в /opt/tilion/
 RUN rm -rf /opt/tilion && \
     mkdir -p /opt/tilion && \
-    if [ -d "/tmp/upstream_opt/tilion" ]; then \
-        cp -a /tmp/upstream_opt/tilion/* /opt/tilion/; \
-    elif [ -d "/tmp/upstream_opt/tilion-fortress" ]; then \
-        cp -a /tmp/upstream_opt/tilion-fortress/* /opt/tilion/; \
-    else \
-        cp -a /tmp/upstream_opt/* /opt/tilion/; \
-    fi && \
+    SRC_DIR=$(find /tmp/upstream_opt -type f -name "chrome" -exec dirname {} \; | head -n 1) && \
+    echo "Found Chrome in: $SRC_DIR" && \
+    cp -a "$SRC_DIR"/* /opt/tilion/ && \
     rm -rf /tmp/upstream_opt && \
+    if [ ! -f /opt/tilion/tilion ] && [ -f /opt/tilion/tillion ]; then ln -sf /opt/tilion/tillion /opt/tilion/tilion; fi && \
     chmod -R 755 /opt/tilion && \
     chown -R tilion:tilion /home/tilion /tmp/tilion-profile /app/extensions /opt/tilion && \
     chmod -R 777 /tmp/tilion-profile /home/tilion && \
