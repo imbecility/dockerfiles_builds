@@ -62,14 +62,12 @@ def custom_download(plat, host, tag):
 
     raise RuntimeError(f"Лаунчер не найден в {cache_dir}")
 
-# Применяем патч
+# Применяем патч в пространстве имён модуля
 tilion_fortress._download = custom_download
-if hasattr(tilion_fortress, "__init__"):
-    setattr(tilion_fortress.__init__, "_download", custom_download)
 
 if __name__ == "__main__":
     if len(sys.argv) > 1 and sys.argv[1] == "--download-only":
-        tag = getattr(tilion_fortress, "DEFAULT_TAG", "v149.0.7827.232")
+        tag = getattr(tilion_fortress, "DEFAULT_TAG", None) or getattr(tilion_fortress, "TAG", None) or "v149.0.7827.232"
         print(f"[fortress] Предварительное скачивание бинарников ({tag})...", flush=True)
         custom_download("linux-x64", "127.0.0.1", tag)
         print("[fortress] Предварительное скачивание завершено.", flush=True)
