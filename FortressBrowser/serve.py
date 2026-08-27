@@ -1,3 +1,4 @@
+# ./FortressBrowser/serve.py
 """
 Fortress CDP-server launcher:
 Запускает Tilion Fortress со встроенной персоной, поддержкой DoH-less DNS sinkhole,
@@ -5,7 +6,6 @@ Fortress CDP-server launcher:
 """
 import os
 import subprocess
-import time
 from pathlib import Path
 
 INTERNAL_PORT = os.environ.get("FORTRESS_INTERNAL_PORT", "9223")
@@ -65,4 +65,5 @@ subprocess.Popen([
 ])
 
 print(f"[fortress] Запуск Chromium CDP сервера на 0.0.0.0:{EXTERNAL_PORT} (внутренний порт {INTERNAL_PORT})...", flush=True)
+# os.execv наследовал бы текущий os.environ автоматически
 os.execv(TILION_BIN, cmd)

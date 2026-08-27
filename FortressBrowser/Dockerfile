@@ -1,3 +1,4 @@
+# ./FortressBrowser/Dockerfile
 ARG BASE_IMAGE=base:latest
 FROM ${BASE_IMAGE}
 
@@ -7,12 +8,15 @@ ENV PORT=9222 \
 
 WORKDIR /app
 
+# Добавляем все недостающие X11 и GUI библиотеки для работы headful Chromium
 RUN apt-get update >/dev/null && apt-get install -y --no-install-recommends \
       binutils socat unzip \
       libnss3 libnspr4 libatk1.0-0 libatk-bridge2.0-0 libcups2 libdrm2 \
       libxkbcommon0 libxcomposite1 libxdamage1 libxfixes3 libxrandr2 libgbm1 \
       libpango-1.0-0 libcairo2 libasound2 libxshmfence1 libglib2.0-0 \
-      libvulkan1 mesa-vulkan-drivers fontconfig >/dev/null && \
+      libvulkan1 mesa-vulkan-drivers fontconfig \
+      libx11-6 libx11-xcb1 libxcb1 libxext6 libxrender1 libxi6 libxtst6 \
+      libexpat1 libdbus-1-3 libgtk-3-0 libatspi2.0-0 libgdk-pixbuf-2.0-0 >/dev/null && \
     pip install --no-cache-dir tilion-fortress >/dev/null && \
     mkdir -p /opt/tilion && \
     python3 -c "import tilion_fortress; tilion_fortress.download(target_dir='/opt/tilion')" 2>/dev/null || \
