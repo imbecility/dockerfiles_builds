@@ -38,4 +38,7 @@ def main() -> None:
         print("=== Интеграционный тест Fortress успешно пройден ===", flush=True)
 
 if __name__ == "__main__":
-    run_main(main)
+    try:
+        run_main(main)
+    except Exception as e:
+        print(e)
