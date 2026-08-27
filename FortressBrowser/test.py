@@ -13,7 +13,7 @@ CDP_URL = "http://localhost:9222"
 
 def main() -> None:
     print(f"Ожидание запуска Fortress CDP на {CDP_URL}...", flush=True)
-    wait_for_cdp_server(CDP_URL, timeout=40)
+    wait_for_cdp_server(CDP_URL, timeout=60)
 
     with sync_playwright() as p:
         print("Подключение к Fortress через CDP...", flush=True)
@@ -38,7 +38,4 @@ def main() -> None:
         print("=== Интеграционный тест Fortress успешно пройден ===", flush=True)
 
 if __name__ == "__main__":
-    try:
-        run_main(main)
-    except Exception as e:
-        print(e)
+    run_main(main)
