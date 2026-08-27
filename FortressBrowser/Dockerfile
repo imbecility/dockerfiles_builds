@@ -17,9 +17,9 @@ RUN apt-get update >/dev/null && apt-get install -y --no-install-recommends \
     rm -rf /var/lib/apt/lists/*
 
 # уже стрипнутый и обрезанный по локалям бандл — берём как есть, повторно стрипать не нужно
-COPY --from=fortress_upstream --chown=tilion:tilion / /
+COPY --from=fortress_upstream --chown=tilion:tilion /opt/ /opt/
 
-RUN ls /opt/tillion
+RUN ls tillion
 
 COPY --chmod=755 <<-"EOF" /app/start.sh
 #!/bin/bash
@@ -28,6 +28,8 @@ sudo bash /app/start_dns.sh
 
 INTERNAL=9223
 PORT="${PORT:-9222}"
+
+ls /opt/tilion/
 
 /opt/tilion/tilion \
     --headless=new \
