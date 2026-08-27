@@ -12,8 +12,10 @@
 # монолитный бандл движка — уже пре-оптимизирован апстримом, дробить не нужно
 /opt/tilion
 /home/tilion
-
+/app/extensions
 /usr/sbin/dnsmasq
+/usr/sbin/gosu
+/usr/bin/dumb-init
 /etc/dnsmasq.conf
 /etc/dnsmasq.hosts
 /app/start_dns.sh
