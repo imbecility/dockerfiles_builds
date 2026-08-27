@@ -1,24 +1,10 @@
 # syntax=docker/dockerfile:1
 ARG BASE_IMAGE=base:latest
-ARG FORTRESS_VERSION=v151.0.7908.0
+ARG FORTRESS_IMAGE=tilion/fortress:151.0.7908.0
 
-# ---- stage 1: prep (толстый toolchain стрипа сюда не попадает в финал) ----
-FROM debian:bookworm-slim AS prep
-ARG FORTRESS_VERSION
-RUN apt-get update && apt-get install -y --no-install-recommends binutils curl ca-certificates \
-    && rm -rf /var/lib/apt/lists/*
-RUN curl -LO "https://github.com/tiliondev/fortress/releases/download/${FORTRESS_VERSION}/tilion-fortress-linux-x64.tar.gz" && \
-    tar xzf tilion-fortress-linux-x64.tar.gz && \
-    mv tilion-fortress /opt/tilion && \
-    rm tilion-fortress-linux-x64.tar.gz
-RUN set -eux; \
-    strip --strip-unneeded /opt/tilion/chrome 2>/dev/null || true; \
-    strip --strip-unneeded /opt/tilion/chrome_crashpad_handler 2>/dev/null || true; \
-    for so in /opt/tilion/*.so /opt/tilion/*.so.1; do strip --strip-unneeded "$so" 2>/dev/null || true; done; \
-    find /opt/tilion/locales -type f -name '*.pak' ! -name 'en-US.pak' ! -name 'en-GB.pak' -delete; \
-    chmod +x /opt/tilion/tilion /opt/tilion/chrome 2>/dev/null || true
+# официальный образ — только как источник для COPY --from, сам по себе никуда не идёт
+FROM ${FORTRESS_IMAGE} AS fortress_upstream
 
-# ---- stage 2: финал, на общем Base (DNS-синкхол/sudo уже там) ----
 FROM ${BASE_IMAGE}
 
 RUN apt-get update >/dev/null && apt-get install -y --no-install-recommends \
@@ -27,10 +13,11 @@ RUN apt-get update >/dev/null && apt-get install -y --no-install-recommends \
     libpango-1.0-0 libcairo2 libasound2 libxshmfence1 libglib2.0-0 \
     libvulkan1 mesa-vulkan-drivers fontconfig socat dumb-init >/dev/null && \
     useradd -m -u 1000 tilion && \
+    pip install --no-cache-dir tilion-fortress >/dev/null && \
     rm -rf /var/lib/apt/lists/*
 
-# --chown при копировании, а не отдельный chown -R — не дублируем бандл в новый слой
-COPY --from=prep --chown=tilion:tilion /opt/tilion/ /opt/tilion/
+# уже стрипнутый и обрезанный по локалям бандл — берём как есть, повторно стрипать не нужно
+COPY --from=fortress_upstream --chown=tilion:tilion /opt/tilion/ /opt/tilion/
 
 COPY --chmod=755 <<-"EOF" /app/start.sh
 #!/bin/bash
@@ -40,7 +27,6 @@ sudo bash /app/start_dns.sh
 INTERNAL=9223
 PORT="${PORT:-9222}"
 
-# используем именно /opt/tilion/tilion (враппер с персоной/шрифтами), а не chrome напрямую
 /opt/tilion/tilion \
     --headless=new \
     --no-sandbox \
@@ -66,5 +52,4 @@ EOF
 USER tilion
 ENV HOME=/home/tilion PORT=9222
 EXPOSE ${PORT}
-# CMD, не ENTRYPOINT — критично для Sync Playwright Version / Extract Internal Browser Version
 CMD ["dumb-init", "--", "/bin/bash", "/app/start.sh"]
