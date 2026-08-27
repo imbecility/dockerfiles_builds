@@ -4,9 +4,11 @@ FROM ${BASE_IMAGE}
 
 ENV PORT=9222 \
     XDG_CACHE_HOME=/home/tilion/.cache \
-    HOME=/home/tilion
+    HOME=/home/tilion \
+    LD_LIBRARY_PATH="/opt/tilion:${LD_LIBRARY_PATH}" \
+    VK_ICD_FILENAMES="/opt/tilion/vk_swiftshader_icd.json"
 
-WORKDIR /app
+WORKDIR /opt/tilion
 
 RUN apt-get update >/dev/null && apt-get install -y --no-install-recommends \
       binutils socat unzip gosu \
@@ -30,7 +32,7 @@ RUN apt-get update >/dev/null && apt-get install -y --no-install-recommends \
     /app/chrome-extensions.sh && rm /app/chrome-extensions.sh && \
     rm -rf /var/lib/apt/lists/*
 
-# Создаем гарантированный шаблон fonts.conf.template для скрипта tilion
+# Создаем шаблон конфигурации шрифтов
 RUN cat <<'EOF' > /opt/tilion/fonts/fonts.conf.template
 <?xml version="1.0"?>
 <!DOCTYPE fontconfig SYSTEM "fonts.dtd">
@@ -58,7 +60,7 @@ COPY --chmod=755 <<-"EOF" /app/start.sh
 #!/bin/bash
 set -e
 
-# 1. DNS Sinkhole
+# 1. Запуск DNS Sinkhole
 bash /app/start_dns.sh
 touch /.dockerenv
 
@@ -73,7 +75,8 @@ if [ -d "/app/extensions" ]; then
   fi
 fi
 
-echo "[fortress] Starting Chromium process..."
+# 2. Переходим в директорию с бинарниками и запускаем Chromium
+cd /opt/tilion
 gosu tilion /opt/tilion/tilion \
   --headless=new \
   --no-sandbox \
@@ -82,32 +85,19 @@ gosu tilion /opt/tilion/tilion \
   --remote-debugging-port="$INTERNAL" \
   --remote-allow-origins="*" \
   --user-data-dir=/tmp/tilion-profile \
-  $EXT_ARGS > /tmp/fortress.log 2>&1 &
+  $EXT_ARGS &
 CHROME_PID=$!
 trap 'kill "$CHROME_PID" 2>/dev/null || true' TERM INT
 
 echo "[fortress] Waiting for internal port $INTERNAL..."
-READY=0
 for i in $(seq 1 40); do
-  if ! kill -0 $CHROME_PID 2>/dev/null; then
-    echo "[fortress] FATAL: Process died! Container logs:" >&2
-    cat /tmp/fortress.log >&2
-    exit 1
-  fi
   if (exec 3<>"/dev/tcp/127.0.0.1/$INTERNAL") 2>/dev/null; then
     exec 3>&-
-    READY=1
-    echo "[fortress] Port $INTERNAL is open and ready."
+    echo "[fortress] Internal port $INTERNAL is open and ready."
     break
   fi
   sleep 0.5
 done
-
-if [ "$READY" -ne 1 ]; then
-  echo "[fortress] FATAL: Port $INTERNAL did not open in 20s! Container logs:" >&2
-  cat /tmp/fortress.log >&2
-  exit 1
-fi
 
 echo "[fortress] Forwarding 0.0.0.0:$EXTERNAL -> 127.0.0.1:$INTERNAL"
 exec socat TCP-LISTEN:"$EXTERNAL",fork,reuseaddr,bind=0.0.0.0 TCP:127.0.0.1:"$INTERNAL"
