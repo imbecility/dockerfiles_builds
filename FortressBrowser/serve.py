@@ -1,57 +1,50 @@
 # ./FortressBrowser/serve.py
 import os
-from pathlib import Path
+import signal
+import subprocess
+import sys
+import time
+from tilion_fortress import Fortress
 
-INTERNAL_PORT = os.environ.get("FORTRESS_INTERNAL_PORT", "9223")
-PROFILE_DIR = os.environ.get("FORTRESS_PROFILE_DIR", "/tmp/tilion-profile")
-EXTENSIONS_DIR = os.environ.get("EXTENSIONS_DIR", "/app/extensions")
-TILION_BIN = "/opt/tilion/tilion"
+INTERNAL_PORT = 9223
+EXTERNAL_PORT = int(os.environ.get("PORT", "9222"))
 
-# Подготовка конфигурации шрифтов Tilion
-cache_dir = Path(os.environ.get("XDG_CACHE_HOME", "/root/.cache")) / "tilion" / "fc"
-cache_dir.mkdir(parents=True, exist_ok=True)
-fonts_conf = cache_dir.parent / "fonts.conf"
+print("[fortress] Запуск Fortress через официальный Python SDK...", flush=True)
 
-template_path = Path("/opt/tilion/fonts/fonts.conf.template")
-if template_path.exists():
-    tmpl = template_path.read_text(encoding="utf-8")
-    conf_content = tmpl.replace("@FONTDIR@", "/opt/tilion/fonts").replace("@CACHEDIR@", str(cache_dir))
-    fonts_conf.write_text(conf_content, encoding="utf-8")
-    os.environ["FONTCONFIG_FILE"] = str(fonts_conf)
+# Инициализируем Fortress на внутреннем порту
+try:
+    f = Fortress(port=INTERNAL_PORT)
+except TypeError:
+    try:
+        f = Fortress(extra_args=[f"--remote-debugging-port={INTERNAL_PORT}"])
+    except TypeError:
+        f = Fortress()
 
-if Path("/opt/tilion/vk_swiftshader_icd.json").exists():
-    os.environ["VK_ICD_FILENAMES"] = "/opt/tilion/vk_swiftshader_icd.json"
+f.start()
+print(f"[fortress] Fortress успешно запущен: {f.cdp_url}", flush=True)
 
-os.environ["TZ"] = os.environ.get("TILION_TZ", "America/New_York")
+# Определяем фактический локальный порт Chromium
+actual_port = f.cdp_url.split(":")[-1].split("/")[0] if ":" in f.cdp_url else str(INTERNAL_PORT)
 
-# Загрузка расширений
-ext_paths = []
-if Path(EXTENSIONS_DIR).exists():
-    ext_paths = [str(p) for p in Path(EXTENSIONS_DIR).iterdir() if p.is_dir()]
-
-# Флаг --headless=new обязателен, Fortress работает скрытно именно в этом режиме
-cmd = [
-    TILION_BIN,
-    "--headless=new",
-    "--no-sandbox",
-    "--disable-dev-shm-usage",
-    "--enable-unsafe-swiftshader",
-    f"--remote-debugging-port={INTERNAL_PORT}",
-    "--remote-allow-origins=*",
-    f"--user-data-dir={PROFILE_DIR}",
-]
-
-if ext_paths:
-    joined_exts = ",".join(ext_paths)
-    cmd.extend([
-        f"--load-extension={joined_exts}",
-        f"--disable-extensions-except={joined_exts}"
+# Поднимаем socat для публикации внутреннего DevTools наружу контейнера (0.0.0.0:9222 -> 127.0.0.1:port)
+if str(actual_port) != str(EXTERNAL_PORT):
+    print(f"[fortress] Публикация порта через socat: 0.0.0.0:{EXTERNAL_PORT} -> 127.0.0.1:{actual_port}", flush=True)
+    socat = subprocess.Popen([
+        "socat",
+        f"TCP-LISTEN:{EXTERNAL_PORT},fork,reuseaddr,bind=0.0.0.0",
+        f"TCP:127.0.0.1:{actual_port}"
     ])
-    print(f"[fortress] Загружено расширений: {len(ext_paths)}", flush=True)
 
-extra_args = os.environ.get("FORTRESS_EXTRA_ARGS", "")
-if extra_args:
-    cmd.extend(extra_args.split())
+def cleanup(sig, frame):
+    print("[fortress] Остановка сервера...", flush=True)
+    try:
+        f.stop()
+    except Exception:
+        pass
+    sys.exit(0)
 
-print(f"[fortress] Запуск Chromium CDP сервера (внутренний порт {INTERNAL_PORT})...", flush=True)
-os.execv(TILION_BIN, cmd)
+signal.signal(signal.SIGINT, cleanup)
+signal.signal(signal.SIGTERM, cleanup)
+
+while True:
+    time.sleep(1)
