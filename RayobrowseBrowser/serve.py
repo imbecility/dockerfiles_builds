@@ -1,154 +1,258 @@
-# ./RayobrowseBrowser/serve.py
+# ./Rayobrowse/serve.py
 import asyncio
+import logging
 import os
-import signal
+import shutil
 import subprocess
 import sys
 import time
 from pathlib import Path
 import aiohttp
 from aiohttp import web
-import requests
 
-INTERNAL_PORT = 9223
-EXTERNAL_PORT = int(os.environ.get("PORT", "9222"))
-DAEMON_CONNECT_URL = f"http://127.0.0.1:{INTERNAL_PORT}/connect"
-DAEMON_HEALTH_URL = f"http://127.0.0.1:{INTERNAL_PORT}/health"
+logging.basicConfig(level=logging.INFO, format="[rayobrowse-proxy] %(asctime)s [%(levelname)s] %(message)s")
+logger = logging.getLogger("serve")
 
-# 1. Запуск официального демона на порту 9223
-env = os.environ.copy()
-env["STEALTH_BROWSER_ACCEPT_TERMS"] = "true"
-env["STEALTH_BROWSER_NOVNC"] = "false"
-env["DISPLAY"] = ":99"
-env["PORT"] = str(INTERNAL_PORT)
-env["RAYOBROWSE_PORT"] = str(INTERNAL_PORT)
-env["RAYOBYTE_ENDPOINT"] = f"http://127.0.0.1:{INTERNAL_PORT}"
+INTERNAL_PORT = int(os.getenv("RAYOBROWSE_INTERNAL_PORT", "9223"))
+EXTERNAL_PORT = int(os.getenv("PORT", "9222"))
+TARGET_OS = os.getenv("RAYOBROWSE_OS", "windows")
+HEADLESS = os.getenv("RAYOBROWSE_HEADLESS", "false")
 
-cmd = [
-    "gosu", "browser",
-    "python3", "-m", "rayobrowse.daemon", "run",
-    "--host", "127.0.0.1",
-    "--port", str(INTERNAL_PORT)
-]
-daemon_proc = subprocess.Popen(cmd, env=env)
+current_browser_ws: str | None = None
+browser_lock = asyncio.Lock()
 
-# 2. Ожидание запуска демона
-print(f"[rayobrowse] Ожидание готовности демона на 127.0.0.1:{INTERNAL_PORT}...", flush=True)
-daemon_ready = False
-for _ in range(80):
-    try:
-        r = requests.get(DAEMON_HEALTH_URL, timeout=1)
-        if r.status_code == 200 and r.json().get("success"):
-            daemon_ready = True
-            print(f"[rayobrowse] Демон успешно запущен на порту {INTERNAL_PORT}.", flush=True)
-            break
-    except Exception:
-        pass
+
+def init_display_and_wm() -> None:
+    display = os.getenv("DISPLAY", ":99")
+    os.environ["DISPLAY"] = display
+
+    # Очистка старых lock-файлов
+    disp_num = display.lstrip(":")
+    for f in [f"/tmp/.X{disp_num}-lock", f"/tmp/.X11-unix/X{disp_num}"]:
+        try:
+            Path(f).unlink(missing_ok=True)
+        except Exception:
+            pass
+
+    logger.info(f"Запуск Xvnc на дисплее {display} (32-bit depth)...")
+    subprocess.Popen(
+        ["Xvnc", display, "-geometry", "1920x1080", "-depth", "32", "-rfbport", "0", "-SecurityTypes", "None", "-nolisten", "tcp"],
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+    )
+    time.sleep(1)
+
+    # Настройка темы Openbox без рамок для консистентных outerWidth/outerHeight
+    theme_dir = Path.home() / ".local/share/themes/NoBorder/openbox-3"
+    theme_dir.mkdir(parents=True, exist_ok=True)
+    (theme_dir / "themerc").write_text(
+        "border.width: 0\npadding.width: 0\npadding.height: 0\nwindow.handle.width: 0\nwindow.client.padding.width: 0\nwindow.client.padding.height: 0\n"
+    )
+
+    ob_dir = Path.home() / ".config/openbox"
+    ob_dir.mkdir(parents=True, exist_ok=True)
+    (ob_dir / "rc.xml").write_text(
+        '<?xml version="1.0" encoding="UTF-8"?><openbox_config xmlns="http://openbox.org/3.4/rc">'
+        '<theme><name>NoBorder</name><font place="ActiveWindow"><name>sans</name><size>0</size></font></theme>'
+        '<applications><application class="*"><decor>no</decor><maximized>no</maximized></application></applications>'
+        '</openbox_config>'
+    )
+
+    subprocess.Popen(["openbox"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     time.sleep(0.5)
-
-if not daemon_ready:
-    print("[rayobrowse] FATAL: Демон не ответил на /health!", flush=True)
-    daemon_proc.terminate()
-    sys.exit(1)
-
-# 3. Инициализация постоянной сессии с расширениями
-ext_paths = [str(p) for p in Path("/app/extensions").iterdir() if p.is_dir()]
-params = {
-    "os": "windows",
-    "headless": "false",
-    "keepAlive": "true",
-    "vnc": "false",
-}
-if ext_paths:
-    params["extension"] = ",".join(ext_paths)
-
-print(f"[rayobrowse] Создание постоянного браузера: {params}...", flush=True)
-try:
-    resp = requests.get(DAEMON_CONNECT_URL, params=params, timeout=60)
-    if resp.status_code != 200:
-        print(f"[rayobrowse] Ошибка /connect ({resp.status_code}): {resp.text}", flush=True)
-        if "extension" in params:
-            print("[rayobrowse] Повторная попытка /connect без расширений...", flush=True)
-            params.pop("extension")
-            resp = requests.get(DAEMON_CONNECT_URL, params=params, timeout=60)
-    resp.raise_for_status()
-    UPSTREAM_WS_URL = resp.text.strip()
-    print(f"[rayobrowse] Сессия готова, CDP WS: {UPSTREAM_WS_URL}", flush=True)
-except Exception as e:
-    print(f"[rayobrowse] FATAL: Сбой при создании браузера: {e}", flush=True)
-    daemon_proc.terminate()
-    sys.exit(1)
+    logger.info("Менеджер окон Openbox успешно запущен.")
 
 
-# 4. Прозрачный мост CDP на 0.0.0.0:9222
-async def handle_ws_proxy(request: web.Request) -> web.WebSocketResponse:
-    client_ws = web.WebSocketResponse(autoping=True, max_msg_size=0)
+def get_extensions_arg() -> str:
+    ext_dir = Path("/app/extensions")
+    if not ext_dir.exists():
+        return ""
+    dirs = [str(d) for d in ext_dir.iterdir() if d.is_dir()]
+    return ",".join(dirs)
+
+
+async def ensure_active_browser() -> str:
+    global current_browser_ws
+    async with browser_lock:
+        if current_browser_ws:
+            # Проверяем живость текущего инстанса через ping
+            try:
+                async with aiohttp.ClientSession() as session:
+                    async with session.ws_connect(current_browser_ws, timeout=2.0) as ws:
+                        await ws.close()
+                        return current_browser_ws
+            except Exception:
+                logger.warning("Существующая сессия браузера недоступна, создаем новую...")
+                current_browser_ws = None
+
+        logger.info("Создание новой persistent stealth-сессии в Rayobrowse Daemon...")
+        params = {
+            "os": TARGET_OS,
+            "headless": HEADLESS,
+            "keepAlive": "true",
+            "maxLifetime": "86400",
+        }
+        exts = get_extensions_arg()
+        if exts:
+            params["extension"] = exts
+
+        async with aiohttp.ClientSession() as session:
+            url = f"http://127.0.0.1:{INTERNAL_PORT}/connect"
+            async with session.get(url, params=params, timeout=120) as resp:
+                resp.raise_for_status()
+                text = (await resp.text()).strip()
+                # Приводим к локальному адресу демона
+                if "://" in text:
+                    parts = text.split("://", 1)[1]
+                    path = parts.split("/", 1)[1] if "/" in parts else ""
+                    current_browser_ws = f"ws://127.0.0.1:{INTERNAL_PORT}/{path}"
+                else:
+                    current_browser_ws = text
+
+                logger.info(f"Браузер готов: {current_browser_ws}")
+                return current_browser_ws
+
+
+# --- HTTP & CDP Proxy Handlers ---
+
+async def handle_version(request: web.Request) -> web.Response:
+    try:
+        await ensure_active_browser()
+    except Exception as e:
+        logger.error(f"Не удалось инициализировать браузер для /json/version: {e}")
+
+    host = request.host
+    return web.json_response({
+        "Browser": "Chrome/146.0.7680.219",
+        "Protocol-Version": "1.3",
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/146.0.0.0 Safari/537.36",
+        "V8-Version": "12.0.0",
+        "WebKit-Version": "537.36",
+        "webSocketDebuggerUrl": f"ws://{host}/devtools/browser/default",
+    })
+
+
+async def handle_json_list(request: web.Request) -> web.Response:
+    host = request.host
+    return web.json_response([{
+        "description": "",
+        "devtoolsFrontendUrl": f"/devtools/inspector.html?ws={host}/devtools/page/default",
+        "id": "default",
+        "title": "Stealth Page",
+        "type": "page",
+        "url": "about:blank",
+        "webSocketDebuggerUrl": f"ws://{host}/devtools/page/default",
+    }])
+
+
+async def handle_health(request: web.Request) -> web.Response:
+    try:
+        async with aiohttp.ClientSession() as session:
+            async with session.get(f"http://127.0.0.1:{INTERNAL_PORT}/health", timeout=3.0) as resp:
+                data = await resp.json()
+                return web.json_response(data)
+    except Exception as e:
+        return web.json_response({"success": False, "error": str(e)}, status=503)
+
+
+async def handle_cdp_ws(request: web.Request) -> web.WebSocketResponse:
+    client_ws = web.WebSocketResponse(max_msg_size=0, timeout=None)
     await client_ws.prepare(request)
+
+    target_ws_url = await ensure_active_browser()
+    logger.info(f"CDP клиент подключен, проксирование на {target_ws_url}")
+
     async with aiohttp.ClientSession() as session:
-        target_ws = UPSTREAM_WS_URL if "cdp" in request.path or "devtools" in request.path else f"ws://127.0.0.1:{INTERNAL_PORT}{request.path_qs}"
-        async with session.ws_connect(target_ws, max_msg_size=0) as upstream_ws:
-            async def fwd(src, dst):
-                async for msg in src:
+        async with session.ws_connect(target_ws_url, max_msg_size=0, timeout=None) as server_ws:
+            async def forward_client_to_server():
+                async for msg in client_ws:
                     if msg.type == aiohttp.WSMsgType.TEXT:
-                        await dst.send_str(msg.data)
+                        await server_ws.send_str(msg.data)
                     elif msg.type == aiohttp.WSMsgType.BINARY:
-                        await dst.send_bytes(msg.data)
-                    elif msg.type in (aiohttp.WSMsgType.CLOSE, aiohttp.WSMsgType.CLOSED, aiohttp.WSMsgType.ERROR):
-                        await dst.close()
+                        await server_ws.send_bytes(msg.data)
+                    elif msg.type == aiohttp.WSMsgType.ERROR:
                         break
 
-            await asyncio.gather(fwd(client_ws, upstream_ws), fwd(upstream_ws, client_ws))
+            async def forward_server_to_client():
+                async for msg in server_ws:
+                    if msg.type == aiohttp.WSMsgType.TEXT:
+                        await client_ws.send_str(msg.data)
+                    elif msg.type == aiohttp.WSMsgType.BINARY:
+                        await client_ws.send_bytes(msg.data)
+                    elif msg.type == aiohttp.WSMsgType.ERROR:
+                        break
+
+            t1 = asyncio.create_task(forward_client_to_server())
+            t2 = asyncio.create_task(forward_server_to_client())
+            await asyncio.wait([t1, t2], return_when=asyncio.FIRST_COMPLETED)
+
     return client_ws
 
 
-async def handle_http_proxy(request: web.Request) -> web.Response:
-    target_url = f"http://127.0.0.1:{INTERNAL_PORT}{request.path_qs}"
-    async with aiohttp.ClientSession() as session:
-        body = await request.read()
-        async with session.request(request.method, target_url, headers=request.headers, data=body) as r:
-            return web.Response(body=await r.read(), status=r.status, headers=r.headers)
-
-
-async def handle_all_requests(request: web.Request):
-    path = request.path.rstrip("/")
-
-    # 1. Ответ на GET /json/version для подключения Playwright
-    if request.method == "GET" and (path == "/json/version" or path == "/json"):
-        host = request.headers.get("Host", f"localhost:{EXTERNAL_PORT}")
-        ws_path = "/" + UPSTREAM_WS_URL.split("://", 1)[-1].split("/", 1)[-1]
-        return web.json_response({
-            "Browser": "Chrome/146.0.7680.219",
-            "Protocol-Version": "1.3",
-            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/146.0.0.0 Safari/537.36",
-            "V8-Version": "13.0.0",
-            "WebKit-Version": "537.36",
-            "webSocketDebuggerUrl": f"ws://{host}{ws_path}"
-        })
-
-    # 2. WebSocket перехватчик
-    if request.headers.get("Upgrade", "").lower() == "websocket":
-        return await handle_ws_proxy(request)
-
-    # 3. HTTP проксирование прочих запросов (health, connect и т.д.)
-    return await handle_http_proxy(request)
+async def wait_for_daemon():
+    logger.info(f"Ожидание старта Rayobrowse Daemon на порту {INTERNAL_PORT}...")
+    for _ in range(60):
+        try:
+            async with aiohttp.ClientSession() as session:
+                async with session.get(f"http://127.0.0.1:{INTERNAL_PORT}/health", timeout=1.0) as resp:
+                    if resp.status == 200:
+                        logger.info("Rayobrowse Daemon успешно запущен.")
+                        return
+        except Exception:
+            pass
+        await asyncio.sleep(0.5)
+    raise RuntimeError("Таймаут ожидания запуска Rayobrowse Daemon!")
 
 
 async def main():
+    init_display_and_wm()
+
+    # Запуск официального демона Rayobrowse
+    env = dict(os.environ)
+    env["STEALTH_BROWSER_ACCEPT_TERMS"] = "true"
+    env["PYTHONPATH"] = "/app/rayobyte_python/src"
+
+    daemon_proc = subprocess.Popen(
+        [sys.executable, "-m", "rayobrowse.daemon", "run", "--host", "127.0.0.1", "--port", str(INTERNAL_PORT)],
+        env=env,
+    )
+
+    await wait_for_daemon()
+
+    # Прогрев сессии браузера
+    try:
+        await ensure_active_browser()
+    except Exception as e:
+        logger.warning(f"Предварительный прогрев браузера отложен: {e}")
+
+    # Запуск внешнего HTTP/CDP сервера
     app = web.Application()
-    app.router.add_route("*", "/{tail:.*}", handle_all_requests)
-    app.router.add_route("*", "/", handle_all_requests)
+    app.router.add_get("/json/version", handle_version)
+    app.router.add_get("/json", handle_json_list)
+    app.router.add_get("/json/list", handle_json_list)
+    app.router.add_get("/health", handle_health)
+
+    # Перехват любых CDP WebSocket URL
+    app.router.add_get("/devtools/browser/{tail:.*}", handle_cdp_ws)
+    app.router.add_get("/devtools/page/{tail:.*}", handle_cdp_ws)
+    app.router.add_get("/cdp/{tail:.*}", handle_cdp_ws)
+    app.router.add_get("/", handle_cdp_ws)
 
     runner = web.AppRunner(app)
     await runner.setup()
     site = web.TCPSite(runner, "0.0.0.0", EXTERNAL_PORT)
     await site.start()
-    print(f"[rayobrowse] CDP Мост слушает на 0.0.0.0:{EXTERNAL_PORT}", flush=True)
 
-    stop_event = asyncio.Event()
-    for sig in (signal.SIGINT, signal.SIGTERM):
-        asyncio.get_running_loop().add_signal_handler(sig, stop_event.set)
-    await stop_event.wait()
-    daemon_proc.terminate()
+    logger.info(f"✨ CDP сервер готов: http://0.0.0.0:{EXTERNAL_PORT}")
+
+    try:
+        while True:
+            if daemon_proc.poll() is not None:
+                logger.error("Daemon процесс упал!")
+                break
+            await asyncio.sleep(2)
+    finally:
+        daemon_proc.terminate()
 
 
 if __name__ == "__main__":
