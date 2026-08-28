@@ -8,7 +8,8 @@ FROM ${BASE_IMAGE} AS base_tools
 # За основу берем официальный полнофункциональный образ Rayobrowse
 FROM ${RAYOBROWSE_IMAGE}
 
-ENV PORT=9222 \
+ENV DEBIAN_FRONTEND=noninteractive \
+    PORT=9222 \
     STEALTH_BROWSER_ACCEPT_TERMS=true \
     RAYOBROWSE_PORT=9222 \
     PATH="/app/.venv/bin:$PATH"
@@ -23,9 +24,11 @@ COPY --from=base_tools /app/chrome-extensions.sh /app/chrome-extensions.sh
 COPY --from=base_tools /etc/dnsmasq.conf /etc/dnsmasq.conf
 COPY --from=base_tools /etc/dnsmasq.hosts /etc/dnsmasq.hosts
 
-# Устанавливаем dnsmasq и python окружение для CDP-моста
-RUN apt-get update >/dev/null && apt-get install -y --no-install-recommends \
-      dnsmasq curl ca-certificates procps sudo python3-pip python3-venv >/dev/null && \
+# Устанавливаем dnsmasq (с запретом автозапуска через policy-rc.d) и окружение Python
+RUN echo "exit 101" > /usr/sbin/policy-rc.d && chmod +x /usr/sbin/policy-rc.d && \
+    apt-get update >/dev/null && apt-get install -y --no-install-recommends \
+      dnsmasq curl ca-certificates procps sudo python3-pip python3-venv unzip >/dev/null && \
+    rm -f /usr/sbin/policy-rc.d && \
     python3 -m venv /app/.venv && \
     /app/.venv/bin/pip install --no-cache-dir httpx aiohttp rayobrowse >/dev/null && \
     chmod +x /app/start_dns.sh /app/chrome-extensions.sh && \
