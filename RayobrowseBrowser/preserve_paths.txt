@@ -1,17 +1,11 @@
 /app
-/opt
 /data
 /usr/sbin/dnsmasq
-/usr/sbin/gosu
 /etc/dnsmasq.conf
 /etc/dnsmasq.hosts
 /app/start_dns.sh
 /app/build_dns_blocklist.py
 /app/dns_sinkhole
-/usr/bin/sudo
-/etc/sudoers
-/etc/sudoers.d
-/etc/pam.d
 /lib/x86_64-linux-gnu/security
 /lib/x86_64-linux-gnu/libnss_dns.so.2
 /lib/x86_64-linux-gnu/libnss_files.so.2
