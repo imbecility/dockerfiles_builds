@@ -11,11 +11,17 @@ if str(ROOT_DIR) not in sys.path:
 
 from playwright.sync_api import sync_playwright
 from shared.capabilities import (
-    run_common_capabilities,
+    test_canvas_and_webgl,
+    test_dialogs,
+    test_dns_sinkhole,
     test_downloads_and_uploads,
     test_extensions_loaded,
+    test_fonts_and_scripts,
+    test_image_decoders,
+    test_media_playback,
+    test_navigation_variants,
     test_pdf_generation,
-    test_permissions_apis,
+    test_screenshots,
     test_storage_apis,
 )
 from shared.utils import run_step, wait_for_cdp_server
@@ -28,39 +34,20 @@ def print_full_system_and_container_dump() -> None:
     print("\n" + "=" * 60, flush=True)
     print("🚨 ДИАГНОСТИЧЕСКИЙ ДАМП СИСТЕМЫ И КОНТЕЙНЕРА 🚨", flush=True)
     print("=" * 60, flush=True)
-
-    try:
-        mem = subprocess.check_output(["free", "-h"], text=True)
-        print(f"=== RAM ХОСТА (free -h) ===\n{mem}", flush=True)
-    except Exception as e:
-        print(f"[Не удалось прочитать free: {e}]", flush=True)
-
     try:
         cids = subprocess.check_output(["docker", "ps", "-a", "-q"], text=True).strip().split()
-        if not cids:
-            print("[Нет контейнеров в docker ps -a]", flush=True)
-            return
-
-        latest_cid = cids[0]
-        print(f"=== КОНТЕЙНЕР ID: {latest_cid} ===", flush=True)
-        inspect_out = subprocess.check_output(
-            ["docker", "inspect", latest_cid, "--format",
-             "Status={{.State.Status}} ExitCode={{.State.ExitCode}} OOMKilled={{.State.OOMKilled}} Error={{.State.Error}} FinishedAt={{.State.FinishedAt}}"],
-            text=True
-        )
-        print(f"Статус контейнера: {inspect_out.strip()}", flush=True)
-
-        print("\n=== ПОЛНЫЕ ЛОГИ КОНТЕЙНЕРА (docker logs) ===", flush=True)
-        logs = subprocess.check_output(["docker", "logs", latest_cid], stderr=subprocess.STDOUT, text=True)
-        print(logs if logs else "[Контейнер ничего не вывел в stdout/stderr]", flush=True)
-
+        if cids:
+            latest_cid = cids[0]
+            print(f"КОНТЕЙНЕР ID: {latest_cid}", flush=True)
+            logs = subprocess.check_output(["docker", "logs", latest_cid], stderr=subprocess.STDOUT, text=True)
+            print(logs if logs else "[Контейнер ничего не вывел]", flush=True)
     except Exception as e:
         print(f"[Ошибка получения данных docker: {e}]", flush=True)
     print("=" * 60 + "\n", flush=True)
 
 
 def sig_handler(signum, frame):
-    print(f"\n⚠️ Получен сигнал {signum} ({signal.Signals(signum).name})! Запуск экстренного дампа...", flush=True)
+    print(f"\n⚠️ Получен сигнал {signum}! Запуск экстренного дампа...", flush=True)
     print_full_system_and_container_dump()
     sys.exit(1)
 
@@ -84,11 +71,17 @@ def main() -> None:
         context.set_default_timeout(20000)
 
         print(f"[{time.strftime('%X')}] 5. Прогон capability-тестов (Slim tracing)...", flush=True)
-        run_common_capabilities(context)
+        run_step("варианты навигации (about/data/file)", test_navigation_variants, context)
+        run_step("скриншоты (png/jpeg/clip/full_page)", test_screenshots, context)
+        run_step("декодеры изображений (png/jpeg/gif/webp/bmp/ico/svg)", test_image_decoders, context)
+        run_step("воспроизведение видео/аудио (h264/vp9/aac/opus/mp3)", test_media_playback, context)
+        run_step("canvas 2d + WebGL", test_canvas_and_webgl, context)
+        run_step("скачивание и загрузка файлов", test_downloads_and_uploads, context)
+        run_step("JS-диалоги (alert/confirm)", test_dialogs, context)
+        run_step("шрифты и письменности (кириллица/арабский/CJK/эмодзи)", test_fonts_and_scripts, context)
+        run_step("DNS-Sinkhole (блокировка трекеров / DoH отключен)", test_dns_sinkhole, context)
         run_step("генерация PDF", test_pdf_generation, context)
         run_step("localStorage/sessionStorage/IndexedDB", test_storage_apis, context)
-        run_step("clipboard/geolocation/notifications", test_permissions_apis, context, is_firefox=False)
-        run_step("скачивание и загрузка файлов", test_downloads_and_uploads, context)
         run_step("количество загруженных расширений", test_extensions_loaded, context, 5)
 
         print(f"[{time.strftime('%X')}] 6. Проверка загрузки внешней страницы (https://google.com)...", flush=True)
