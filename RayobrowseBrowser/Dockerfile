@@ -12,7 +12,7 @@ ENV PORT=9222 \
 
 WORKDIR /app
 
-# Устанавливаем системные зависимости и копируем бинарники демона/браузера
+# Устанавливаем системные зависимости
 RUN apt-get update >/dev/null && apt-get install -y --no-install-recommends \
       libnss3 libnspr4 libatk1.0-0 libatk-bridge2.0-0 libcups2 libdrm2 \
       libxkbcommon0 libxcomposite1 libxdamage1 libxfixes3 libxrandr2 libgbm1 \
@@ -25,7 +25,7 @@ RUN apt-get update >/dev/null && apt-get install -y --no-install-recommends \
     /app/chrome-extensions.sh && rm /app/chrome-extensions.sh && \
     rm -rf /var/lib/apt/lists/*
 
-# Забираем бандл демона и Chromium из апстрим-образа
+# Копируем бинарники демона и Chromium из upstream-образа
 COPY --from=rayo_upstream / /tmp/upstream_root/
 RUN rm -rf /tmp/upstream_root/etc/resolv.conf /tmp/upstream_root/etc/hosts && \
     cp -rn /tmp/upstream_root/usr/local/* /usr/local/ 2>/dev/null || true && \
@@ -48,6 +48,7 @@ echo -e "\n==================================\nstarting rayobrowse cdp bridge on
 exec python /app/serve.py
 EOF
 
-EXPOSE 9222 6080
+# ВАЖНО: только 9222, чтобы extract_port.py в CI пробрасывал именно CDP порт
+EXPOSE 9222
 VOLUME ["/data"]
 CMD ["/bin/bash", "/app/start.sh"]
