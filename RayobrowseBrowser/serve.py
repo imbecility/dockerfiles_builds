@@ -34,20 +34,6 @@ def get_extensions_arg() -> str:
     return ",".join(dirs)
 
 
-def dump_internal_browser_logs() -> None:
-    logger.error("=== ДАМП ВНУТРЕННИХ ЛОГОВ БРАУЗЕРА ===")
-    for log_dir in [Path("/data/logs"), Path("/tmp")]:
-        if not log_dir.exists():
-            continue
-        for f in log_dir.glob("*.log"):
-            try:
-                content = f.read_text(encoding="utf-8", errors="ignore").strip()
-                if content:
-                    logger.error(f"--- Лог файл {f} ---\n{content}")
-            except Exception:
-                pass
-
-
 async def ensure_active_browser() -> str:
     global current_browser_ws
     await asyncio.wait_for(daemon_ready_event.wait(), timeout=60.0)
@@ -81,7 +67,6 @@ async def ensure_active_browser() -> str:
             async with session.get(url, params=params, timeout=120) as resp:
                 if resp.status != 200:
                     err_body = await resp.text()
-                    dump_internal_browser_logs()
                     raise RuntimeError(f"Daemon /connect вернул статус {resp.status}: {err_body}")
 
                 text = (await resp.text()).strip()
@@ -216,7 +201,7 @@ async def main():
     await site.start()
     logger.info(f"✨ CDP сервер открыт и слушает: http://0.0.0.0:{EXTERNAL_PORT}")
 
-    # 2. Запуск демона Rayobrowse
+    # 2. Запуск демона с прямым выводом stdout/stderr в консоль
     env = dict(os.environ)
     env["STEALTH_BROWSER_ACCEPT_TERMS"] = "true"
     env["PYTHONPATH"] = "/app/rayobyte_python/src"
@@ -224,11 +209,13 @@ async def main():
     daemon_proc = subprocess.Popen(
         [sys.executable, "-m", "rayobrowse.daemon", "run", "--host", "127.0.0.1", "--port", str(INTERNAL_PORT)],
         env=env,
+        stdout=sys.stdout,
+        stderr=sys.stderr,
     )
 
     await wait_for_daemon()
 
-    # 3. Прогрев браузера
+    # 3. Фоновый прогрев первой сессии
     asyncio.create_task(ensure_active_browser())
 
     try:
