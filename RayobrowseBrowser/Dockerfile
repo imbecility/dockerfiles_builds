@@ -7,7 +7,7 @@ FROM ${RAYOBROWSE_IMAGE} AS rayobrowse_upstream
 
 FROM ${BASE_IMAGE}
 
-ENV PATH="/usr/local/bin:/usr/bin:/bin" \
+ENV PATH="/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin" \
     VIRTUAL_ENV="" \
     PORT=9222 \
     PYTHONPATH=/app/rayobyte_python/src \
@@ -22,10 +22,10 @@ RUN apt-get update >/dev/null && apt-get install -y --no-install-recommends \
     libnss3 libnspr4 libatk1.0-0 libatk-bridge2.0-0 libcups2 libdrm2 \
     libxkbcommon0 libxcomposite1 libxdamage1 libxfixes3 libxrandr2 libgbm1 \
     libpango-1.0-0 libcairo2 libasound2 libxshmfence1 libglib2.0-0 \
-    libgl1-mesa-dri libegl-mesa0 fonts-unifont fonts-wqy-zenhei dbus \
+    libgl1-mesa-dri libegl-mesa0 fonts-unifont fonts-wqy-zenhei dbus passwd \
     gosu unzip zstd tar procps ca-certificates >/dev/null && \
-    useradd -m -u 1000 browser && \
-    mkdir -p /data/data /data/cache /data/logs /home/browser /app/extensions /var/run/dbus && \
+    mkdir -p /home/browser /data/data /data/cache /data/logs /app/extensions /var/run/dbus && \
+    (useradd -m -u 1000 -d /home/browser -s /bin/bash browser 2>/dev/null || true) && \
     dbus-uuidgen > /etc/machine-id 2>/dev/null || true && \
     /app/chrome-extensions.sh && rm /app/chrome-extensions.sh && \
     rm -rf /var/lib/apt/lists/*
@@ -34,7 +34,7 @@ COPY --from=rayobrowse_upstream /usr/local /usr/local
 COPY --from=rayobrowse_upstream /opt/stealth-browser /opt/stealth-browser
 COPY --from=rayobrowse_upstream /app/rayobyte_python /app/rayobyte_python
 
-# 1. Гарантированное размещение chromiumSwitches.js со всеми headless/shm флагами
+# 1. Размещение chromiumSwitches.js
 RUN mkdir -p /usr/local/lib/python3.12/site-packages/playwright/driver/package/lib/server/chromium && \
     cat <<'EOF' > /usr/local/lib/python3.12/site-packages/playwright/driver/package/lib/server/chromium/chromiumSwitches.js
 module.exports = {
@@ -73,13 +73,14 @@ module.exports = {
 EOF
 
 # 2. Симлинк домашней директории на запеченные бинарники
-RUN rm -rf /home/browser/.stealth-browser && \
+RUN mkdir -p /home/browser && \
+    rm -rf /home/browser/.stealth-browser && \
     ln -sfn /opt/stealth-browser /home/browser/.stealth-browser && \
     chown -R browser:browser /home/browser /opt/stealth-browser /app /data
 
 # 3. Предзагрузка GeoIP и шрифтов в слой образа
-RUN gosu browser python3 -c "from rayobrowse.updater.auto_update import ensure_geolite2_db; ensure_geolite2_db()" 2>/dev/null || true
-RUN gosu browser python3 -c "from rayobrowse.updater.assets import ensure_asset; ensure_asset('fonts')" 2>/dev/null || true
+RUN gosu browser /usr/local/bin/python3 -c "from rayobrowse.updater.auto_update import ensure_geolite2_db; ensure_geolite2_db()" 2>/dev/null || true
+RUN gosu browser /usr/local/bin/python3 -c "from rayobrowse.updater.assets import ensure_asset; ensure_asset('fonts')" 2>/dev/null || true
 
 # 4. Права root:root + setuid (4755) для sandbox
 RUN chmod -R 755 /opt/stealth-browser && \
@@ -100,7 +101,7 @@ bash /app/start_dns.sh
 touch /.dockerenv
 
 # 2. Инициализация /tmp/.X11-unix и прав sandbox
-mkdir -p /tmp/.X11-unix /var/run/dbus
+mkdir -p /tmp/.X11-unix /var/run/dbus /home/browser
 chmod 1777 /tmp /tmp/.X11-unix
 for sb in $(find /opt/stealth-browser -type f -name "*sandbox*" 2>/dev/null); do
     chown root:root "$sb" 2>/dev/null || true
