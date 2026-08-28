@@ -71,9 +71,9 @@ def main() -> None:
     for sig in [signal.SIGTERM, signal.SIGINT, signal.SIGHUP]:
         signal.signal(sig, sig_handler)
 
-    print(f"[{time.strftime('%X')}] 1. Ожидание запуска Rayobrowse CDP на {CDP_URL}...", flush=True)
-    wait_for_cdp_server(CDP_URL, timeout=60)
-    print(f"[{time.strftime('%X')}] 2. CDP сервер готов к работе!", flush=True)
+    print(f"[{time.strftime('%X')}] 1. Ожидание готовности Rayobrowse CDP на {CDP_URL}...", flush=True)
+    wait_for_cdp_server(CDP_URL, timeout=90)
+    print(f"[{time.strftime('%X')}] 2. CDP сервер и сессия браузера полностью готовы!", flush=True)
 
     print(f"[{time.strftime('%X')}] 3. Подключение Playwright через connect_over_cdp...", flush=True)
     with sync_playwright() as p:
@@ -114,5 +114,4 @@ if __name__ == "__main__":
         sys.exit(1)
     finally:
         if not SUCCESS:
-            print("\n⚠️ Завершение без флага успеха. Вывод дампа...", flush=True)
             print_full_system_and_container_dump()
