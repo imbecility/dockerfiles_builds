@@ -1,4 +1,4 @@
-# ./Rayobrowse/Dockerfile
+# ./RayobrowseBrowser/Dockerfile
 # syntax=docker/dockerfile:1
 ARG BASE_IMAGE=base:latest
 ARG RAYOBROWSE_IMAGE=rayobyte/rayobrowse:latest
@@ -13,7 +13,6 @@ ENV PORT=9222 \
     XDG_CONFIG_HOME=/home/browser/.config \
     XDG_DATA_HOME=/home/browser/.local/share
 
-# Системные зависимости для Chromium, TigerVNC и Openbox
 RUN apt-get update >/dev/null && apt-get install -y --no-install-recommends \
     tigervnc-standalone-server openbox x11-xserver-utils x11-utils xdotool \
     libnss3 libnspr4 libatk1.0-0 libatk-bridge2.0-0 libcups2 libdrm2 \
@@ -27,17 +26,19 @@ RUN apt-get update >/dev/null && apt-get install -y --no-install-recommends \
     /app/chrome-extensions.sh && rm /app/chrome-extensions.sh && \
     rm -rf /var/lib/apt/lists/*
 
-# Копируем runtime Python 3.12, скомпилированные модули и Chromium-стек
 COPY --from=rayobrowse_upstream /usr/local /usr/local
 COPY --from=rayobrowse_upstream /opt/stealth-browser /opt/stealth-browser
 COPY --from=rayobrowse_upstream /app/rayobyte_python /app/rayobyte_python
 
-# Фиксируем права доступа и sandbox setuid
+# Предварительная загрузка GeoLite2 на этапе сборки образа
+RUN mkdir -p /opt/stealth-browser/geolite2 && \
+    python3 -c "from rayobrowse.updater.auto_update import ensure_geolite2_db; ensure_geolite2_db()" 2>/dev/null || true
+
 RUN chmod -R 755 /opt/stealth-browser && \
-    for sb in /opt/stealth-browser/chromium/v146/b18/chrome-sandbox /opt/stealth-browser/chromium/v146/b18/chrome_sandbox; do \
-        if [ -f "$sb" ]; then chown root:root "$sb" && chmod 4755 "$sb"; fi \
+    for sb in $(find /opt/stealth-browser -type f -name "*chrome*sandbox*"); do \
+        chown root:root "$sb" && chmod 4755 "$sb"; \
     done && \
-    chown -R browser:browser /opt/stealth-browser /app/rayobyte_python /home/browser && \
+    chown -R browser:browser /opt/stealth-browser /app/rayobyte_python /home/browser /data && \
     ldconfig
 
 WORKDIR /app
@@ -47,11 +48,11 @@ COPY --chmod=755 <<-"EOF" /app/start.sh
 #!/bin/bash
 set -e
 
-# 1. Нативный запуск DNS-sinkhole от root
+# 1. Запуск DNS Sinkhole от root
 bash /app/start_dns.sh
 touch /.dockerenv
 
-# 2. Передача управления в serve.py от пользователя browser
+# 2. Запуск serve.py от пользователя browser
 exec gosu browser python3 /app/serve.py
 EOF
 
