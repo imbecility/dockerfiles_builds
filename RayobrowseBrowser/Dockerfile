@@ -10,11 +10,11 @@ FROM ${BASE_IMAGE}
 ENV PORT=9222 \
     PYTHONPATH=/app/rayobyte_python/src \
     STEALTH_BROWSER_ACCEPT_TERMS=true \
+    STEALTH_BROWSER_DIR=/opt/stealth-browser \
     XDG_CONFIG_HOME=/home/browser/.config \
     XDG_DATA_HOME=/home/browser/.local/share \
-    STEALTH_BROWSER_DIR=/opt/stealth-browser
+    DISPLAY=:99
 
-# Системные зависимости: добавлен zstd и tar для распаковки шрифтов
 RUN apt-get update >/dev/null && apt-get install -y --no-install-recommends \
     tigervnc-standalone-server openbox x11-xserver-utils x11-utils xdotool \
     libnss3 libnspr4 libatk1.0-0 libatk-bridge2.0-0 libcups2 libdrm2 \
@@ -24,7 +24,6 @@ RUN apt-get update >/dev/null && apt-get install -y --no-install-recommends \
     gosu unzip zstd tar procps ca-certificates >/dev/null && \
     useradd -m -u 1000 browser && \
     mkdir -p /data/data /data/cache /data/logs /home/browser /app/extensions && \
-    chown -R browser:browser /data /home/browser /app && \
     /app/chrome-extensions.sh && rm /app/chrome-extensions.sh && \
     rm -rf /var/lib/apt/lists/*
 
@@ -32,19 +31,18 @@ COPY --from=rayobrowse_upstream /usr/local /usr/local
 COPY --from=rayobrowse_upstream /opt/stealth-browser /opt/stealth-browser
 COPY --from=rayobrowse_upstream /app/rayobyte_python /app/rayobyte_python
 
-# Симлинки и права на структуру stealth-browser
-RUN mkdir -p /home/browser/.stealth-browser && \
-    ln -sfn /opt/stealth-browser/fonts /home/browser/.stealth-browser/fonts && \
-    ln -sfn /opt/stealth-browser/geolite2 /home/browser/.stealth-browser/geolite2 && \
-    chown -R browser:browser /home/browser /opt/stealth-browser /app/rayobyte_python
+# Симлинк домашней директории на запеченные бинарники
+RUN rm -rf /home/browser/.stealth-browser && \
+    ln -sfn /opt/stealth-browser /home/browser/.stealth-browser && \
+    chown -R browser:browser /home/browser /opt/stealth-browser /app /data
 
-# Предварительная загрузка и запекание GeoLite2 и шрифтов в слой образа
+# Предзагрузка GeoIP и шрифтов в слой образа во время сборки
 RUN gosu browser python3 -c "from rayobrowse.updater.auto_update import ensure_geolite2_db; ensure_geolite2_db()" 2>/dev/null || true
 RUN gosu browser python3 -c "from rayobrowse.updater.assets import ensure_asset; ensure_asset('fonts')" 2>/dev/null || true
 
-# Sandbox и финальные права
+# Установка прав root:root + setuid (4755) для sandbox
 RUN chmod -R 755 /opt/stealth-browser && \
-    for sb in $(find /opt/stealth-browser -type f -name "*chrome*sandbox*"); do \
+    for sb in $(find /opt/stealth-browser -type f -name "*sandbox*"); do \
         chown root:root "$sb" && chmod 4755 "$sb"; \
     done && \
     ldconfig
@@ -60,7 +58,51 @@ set -e
 bash /app/start_dns.sh
 touch /.dockerenv
 
-# 2. Запуск serve.py от пользователя browser
+# 2. Фиксация прав на sandbox перед сбросом привилегий
+for sb in $(find /opt/stealth-browser -type f -name "*sandbox*" 2>/dev/null); do
+    chown root:root "$sb" 2>/dev/null || true
+    chmod 4755 "$sb" 2>/dev/null || true
+done
+chown -R browser:browser /data /home/browser 2>/dev/null || true
+
+# 3. Запуск Xvnc и Openbox от пользователя browser
+rm -f /tmp/.X99-lock /tmp/.X11-unix/X99 2>/dev/null || true
+
+gosu browser Xvnc :99 -geometry 1920x1080 -depth 32 -rfbport 0 -SecurityTypes None -nolisten tcp >/dev/null 2>&1 &
+for i in $(seq 1 30); do
+    if xdpyinfo -display :99 >/dev/null 2>&1; then break; fi
+    sleep 0.1
+done
+
+# Темы и настройки Openbox
+mkdir -p /home/browser/.local/share/themes/NoBorder/openbox-3 /home/browser/.config/openbox
+cat > /home/browser/.local/share/themes/NoBorder/openbox-3/themerc << 'THEME'
+border.width: 0
+padding.width: 0
+padding.height: 0
+window.handle.width: 0
+window.client.padding.width: 0
+window.client.padding.height: 0
+THEME
+
+cat > /home/browser/.config/openbox/rc.xml << 'OBXML'
+<?xml version="1.0" encoding="UTF-8"?>
+<openbox_config xmlns="http://openbox.org/3.4/rc">
+  <theme><name>NoBorder</name><font place="ActiveWindow"><name>sans</name><size>0</size></font></theme>
+  <applications><application class="*"><decor>no</decor><maximized>no</maximized></application></applications>
+</openbox_config>
+OBXML
+chown -R browser:browser /home/browser/.local /home/browser/.config
+
+gosu browser openbox >/dev/null 2>&1 &
+for i in $(seq 1 30); do
+    if xprop -display :99 -root _NET_SUPPORTING_WM_CHECK >/dev/null 2>&1; then break; fi
+    sleep 0.1
+done
+
+echo "[rayobrowse] Дисплей :99 и Openbox успешно инициализированы."
+
+# 4. Запуск serve.py
 exec gosu browser python3 /app/serve.py
 EOF
 

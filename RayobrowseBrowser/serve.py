@@ -4,7 +4,6 @@ import logging
 import os
 import subprocess
 import sys
-import time
 from pathlib import Path
 import aiohttp
 from aiohttp import web
@@ -27,53 +26,6 @@ daemon_ready_event = asyncio.Event()
 browser_ready_event = asyncio.Event()
 
 
-def init_display_and_wm() -> None:
-    display = os.getenv("DISPLAY", ":99")
-    os.environ["DISPLAY"] = display
-
-    disp_num = display.lstrip(":")
-    for f in [f"/tmp/.X{disp_num}-lock", f"/tmp/.X11-unix/X{disp_num}"]:
-        try:
-            Path(f).unlink(missing_ok=True)
-        except Exception:
-            pass
-
-    logger.info(f"Запуск Xvnc на дисплее {display} (32-bit depth)...")
-    subprocess.Popen(
-        ["Xvnc", display, "-geometry", "1920x1080", "-depth", "32", "-rfbport", "0", "-SecurityTypes", "None", "-nolisten", "tcp"],
-        stdout=subprocess.DEVNULL,
-        stderr=subprocess.DEVNULL,
-    )
-
-    theme_dir = Path.home() / ".local/share/themes/NoBorder/openbox-3"
-    theme_dir.mkdir(parents=True, exist_ok=True)
-    (theme_dir / "themerc").write_text(
-        "border.width: 0\npadding.width: 0\npadding.height: 0\nwindow.handle.width: 0\nwindow.client.padding.width: 0\nwindow.client.padding.height: 0\n"
-    )
-
-    ob_dir = Path.home() / ".config/openbox"
-    ob_dir.mkdir(parents=True, exist_ok=True)
-    (ob_dir / "rc.xml").write_text(
-        '<?xml version="1.0" encoding="UTF-8"?><openbox_config xmlns="http://openbox.org/3.4/rc">'
-        '<theme><name>NoBorder</name><font place="ActiveWindow"><name>sans</name><size>0</size></font></theme>'
-        '<applications><application class="*"><decor>no</decor><maximized>no</maximized></application></applications>'
-        '</openbox_config>'
-    )
-
-    logger.info("Запуск менеджера окон Openbox...")
-    subprocess.Popen(["openbox"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-
-    for _ in range(30):
-        try:
-            out = subprocess.check_output(["xprop", "-root", "_NET_SUPPORTING_WM_CHECK"], stderr=subprocess.DEVNULL).decode()
-            if "WINDOW" in out:
-                logger.info("Openbox WM успешно зарегистрирован.")
-                break
-        except Exception:
-            pass
-        time.sleep(0.1)
-
-
 def get_extensions_arg() -> str:
     ext_dir = Path("/app/extensions")
     if not ext_dir.exists():
@@ -82,9 +34,22 @@ def get_extensions_arg() -> str:
     return ",".join(dirs)
 
 
+def dump_internal_browser_logs() -> None:
+    logger.error("=== ДАМП ВНУТРЕННИХ ЛОГОВ БРАУЗЕРА ===")
+    for log_dir in [Path("/data/logs"), Path("/tmp")]:
+        if not log_dir.exists():
+            continue
+        for f in log_dir.glob("*.log"):
+            try:
+                content = f.read_text(encoding="utf-8", errors="ignore").strip()
+                if content:
+                    logger.error(f"--- Лог файл {f} ---\n{content}")
+            except Exception:
+                pass
+
+
 async def ensure_active_browser() -> str:
     global current_browser_ws
-    # Ожидание готовности основного демона перед обращением к /connect
     await asyncio.wait_for(daemon_ready_event.wait(), timeout=60.0)
 
     async with browser_lock:
@@ -116,6 +81,7 @@ async def ensure_active_browser() -> str:
             async with session.get(url, params=params, timeout=120) as resp:
                 if resp.status != 200:
                     err_body = await resp.text()
+                    dump_internal_browser_logs()
                     raise RuntimeError(f"Daemon /connect вернул статус {resp.status}: {err_body}")
 
                 text = (await resp.text()).strip()
@@ -227,9 +193,7 @@ async def wait_for_daemon():
 
 
 async def main():
-    init_display_and_wm()
-
-    # 1. Запуск HTTP/CDP сервера на порту 9222
+    # 1. Запуск HTTP/CDP сервера
     app = web.Application()
     for route in ["/json/version", "/json/version/"]:
         app.router.add_get(route, handle_version)
@@ -264,7 +228,7 @@ async def main():
 
     await wait_for_daemon()
 
-    # 3. Фоновый прогрев первой сессии
+    # 3. Прогрев браузера
     asyncio.create_task(ensure_active_browser())
 
     try:
