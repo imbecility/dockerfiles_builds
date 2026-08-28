@@ -2,10 +2,13 @@
 ARG BASE_IMAGE=base:latest
 ARG RAYOBROWSE_IMAGE=rayobyte/rayobrowse:latest
 
-# 1. Скачиваем расширения в чистом Base
+# 1. Собираем ВСЕ .so библиотеки для dnsmasq через ldd и скачиваем расширения
 FROM ${BASE_IMAGE} AS base_tools
 
-RUN mkdir -p /app/extensions && \
+RUN mkdir -p /app/extensions /tmp/dnsmasq_libs && \
+    for lib in $(ldd /usr/sbin/dnsmasq | grep -o '/lib[^ ]*'); do \
+        cp -L "$lib" /tmp/dnsmasq_libs/ 2>/dev/null || true; \
+    done && \
     /app/chrome-extensions.sh && \
     rm -f /app/chrome-extensions.sh
 
@@ -14,13 +17,9 @@ FROM ${RAYOBROWSE_IMAGE}
 
 USER root
 
-# Копируем бинарник dnsmasq и ВСЕ его системные библиотеки из base_tools
+# Копируем бинарник dnsmasq и ВСЕ найденные ldd библиотеки
 COPY --from=base_tools /usr/sbin/dnsmasq /usr/sbin/dnsmasq
-COPY --from=base_tools /usr/lib/x86_64-linux-gnu/libnetfilter* /usr/lib/x86_64-linux-gnu/
-COPY --from=base_tools /usr/lib/x86_64-linux-gnu/libnfnetlink* /usr/lib/x86_64-linux-gnu/
-COPY --from=base_tools /usr/lib/x86_64-linux-gnu/libnettle* /usr/lib/x86_64-linux-gnu/
-COPY --from=base_tools /usr/lib/x86_64-linux-gnu/libhogweed* /usr/lib/x86_64-linux-gnu/
-COPY --from=base_tools /usr/lib/x86_64-linux-gnu/libgmp* /usr/lib/x86_64-linux-gnu/
+COPY --from=base_tools /tmp/dnsmasq_libs/ /usr/lib/x86_64-linux-gnu/
 
 # Копируем конфигурации и скрипты DNS Sinkhole
 COPY --from=base_tools /etc/dnsmasq.conf /etc/dnsmasq.conf
