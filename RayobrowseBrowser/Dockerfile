@@ -31,15 +31,15 @@ COPY --from=base_tools /app/build_dns_blocklist.py /app/build_dns_blocklist.py
 # Копируем готовые расширения
 COPY --from=base_tools /app/extensions /app/extensions
 
-# Настраиваем SUID песочницы Chrome, права и скачиваем GeoLite2 один раз при сборке
+# Внедряем обертку над Chrome для гарантированного запуска с --no-sandbox в Docker
 RUN chmod +x /app/start_dns.sh /usr/sbin/dnsmasq && \
     mkdir -p /data/data /data/cache /data/logs /opt/stealth-browser/geolite2 && \
-    for sandbox in /opt/stealth-browser/chromium/chrome_sandbox /opt/stealth-browser/chromium/chrome-sandbox; do \
-      if [ -e "$sandbox" ]; then \
-        REAL=$(readlink -f "$sandbox" 2>/dev/null || echo "$sandbox"); \
-        chown root:root "$REAL" 2>/dev/null && chmod 4755 "$REAL" 2>/dev/null || true; \
-      fi; \
-    done && \
+    REAL_CHROME=$(readlink -f /opt/stealth-browser/chromium/chrome) && \
+    if [ ! -f "${REAL_CHROME}.real" ]; then \
+        mv "$REAL_CHROME" "${REAL_CHROME}.real" && \
+        printf '#!/bin/bash\nexec "%s.real" --no-sandbox --disable-setuid-sandbox --disable-dev-shm-usage "$@"\n' "$REAL_CHROME" > "$REAL_CHROME" && \
+        chmod 755 "$REAL_CHROME"; \
+    fi && \
     python3 -c "from rayobrowse.updater.auto_update import ensure_geolite2_db; ensure_geolite2_db()" 2>/dev/null || true && \
     chown -R browser:browser /app/extensions /data /opt/stealth-browser && \
     chmod -R 777 /tmp /data /app/extensions
