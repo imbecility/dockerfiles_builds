@@ -18,7 +18,7 @@ ENV PATH="/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin" \
     DISPLAY=:99
 
 RUN apt-get update >/dev/null && apt-get install -y --no-install-recommends \
-    xvfb openbox x11-xserver-utils x11-utils xdotool \
+    tigervnc-standalone-server openbox x11-xserver-utils x11-utils xdotool \
     libnss3 libnspr4 libatk1.0-0 libatk-bridge2.0-0 libcups2 libdrm2 \
     libxkbcommon0 libxcomposite1 libxdamage1 libxfixes3 libxrandr2 libgbm1 \
     libpango-1.0-0 libcairo2 libasound2 libxshmfence1 libglib2.0-0 \
@@ -34,14 +34,55 @@ COPY --from=rayobrowse_upstream /usr/local /usr/local
 COPY --from=rayobrowse_upstream /opt/stealth-browser /opt/stealth-browser
 COPY --from=rayobrowse_upstream /app/rayobyte_python /app/rayobyte_python
 
+# 1. Размещение chromiumSwitches.js
+RUN mkdir -p /usr/local/lib/python3.12/site-packages/playwright/driver/package/lib/server/chromium && \
+    cat <<'EOF' > /usr/local/lib/python3.12/site-packages/playwright/driver/package/lib/server/chromium/chromiumSwitches.js
+module.exports = {
+  defaultArgs: [
+    '--disable-field-trial-config',
+    '--disable-background-networking',
+    '--enable-features=NetworkService,NetworkServiceInProcess',
+    '--disable-background-timer-throttling',
+    '--disable-backgrounding-occluded-windows',
+    '--disable-back-forward-cache',
+    '--disable-breakpad',
+    '--disable-client-side-phishing-detection',
+    '--disable-component-extensions-with-background-pages',
+    '--disable-component-update',
+    '--no-default-browser-check',
+    '--disable-default-apps',
+    '--disable-dev-shm-usage',
+    '--disable-hang-monitor',
+    '--disable-ipc-flooding-protection',
+    '--disable-popup-blocking',
+    '--disable-prompt-on-repost',
+    '--disable-renderer-backgrounding',
+    '--force-color-profile=srgb',
+    '--metrics-recording-only',
+    '--no-first-run',
+    '--password-store=basic',
+    '--use-mock-keychain',
+    '--no-service-autorun',
+    '--export-tagged-pdf',
+    '--enable-unsafe-swiftshader',
+    '--use-gl=angle',
+    '--use-angle=swiftshader',
+    '--no-sandbox'
+  ]
+};
+EOF
+
+# 2. Симлинк домашней директории на запеченные бинарники
 RUN mkdir -p /home/browser && \
     rm -rf /home/browser/.stealth-browser && \
     ln -sfn /opt/stealth-browser /home/browser/.stealth-browser && \
     chown -R browser:browser /home/browser /opt/stealth-browser /app /data
 
+# 3. Предзагрузка GeoIP и шрифтов в слой образа
 RUN gosu browser /usr/local/bin/python3 -c "from rayobrowse.updater.auto_update import ensure_geolite2_db; ensure_geolite2_db()" 2>/dev/null || true
 RUN gosu browser /usr/local/bin/python3 -c "from rayobrowse.updater.assets import ensure_asset; ensure_asset('fonts')" 2>/dev/null || true
 
+# 4. Права root:root + setuid (4755) для sandbox
 RUN chmod -R 755 /opt/stealth-browser && \
     for sb in $(find /opt/stealth-browser -type f -name "*sandbox*"); do \
         chown root:root "$sb" && chmod 4755 "$sb"; \
@@ -55,9 +96,11 @@ COPY --chmod=755 <<-"EOF" /app/start.sh
 #!/bin/bash
 set -e
 
+# 1. Запуск DNS Sinkhole от root
 bash /app/start_dns.sh
 touch /.dockerenv
 
+# 2. Инициализация /tmp/.X11-unix и прав sandbox
 mkdir -p /tmp/.X11-unix /var/run/dbus /home/browser
 chmod 1777 /tmp /tmp/.X11-unix
 for sb in $(find /opt/stealth-browser -type f -name "*sandbox*" 2>/dev/null); do
@@ -66,9 +109,10 @@ for sb in $(find /opt/stealth-browser -type f -name "*sandbox*" 2>/dev/null); do
 done
 chown -R browser:browser /data /home/browser 2>/dev/null || true
 
+# 3. Запуск Xvnc и Openbox от пользователя browser
 rm -f /tmp/.X99-lock /tmp/.X11-unix/X99 2>/dev/null || true
 
-Xvfb :99 -screen 0 1920x1080x24 -nolisten tcp -ac >/dev/null 2>&1 &
+gosu browser Xvnc :99 -geometry 1920x1080 -depth 32 -rfbport 0 -SecurityTypes None -nolisten tcp >/dev/null 2>&1 &
 for i in $(seq 1 30); do
     if xdpyinfo -display :99 >/dev/null 2>&1; then break; fi
     sleep 0.1
@@ -99,8 +143,9 @@ for i in $(seq 1 30); do
     sleep 0.1
 done
 
-echo "[rayobrowse] Дисплей :99 (Xvfb) и Openbox успешно инициализированы."
+echo "[rayobrowse] Дисплей :99 и Openbox успешно инициализированы."
 
+# 4. Запуск serve.py через Python 3.12
 exec gosu browser /usr/local/bin/python3 /app/serve.py
 EOF
 
