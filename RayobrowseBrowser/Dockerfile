@@ -2,39 +2,43 @@
 ARG BASE_IMAGE=base:latest
 ARG RAYOBROWSE_IMAGE=rayobyte/rayobrowse:latest
 
-# Берем инструменты DNS sinkhole из нашего Base
+# ---- Stage 1: Собираем все зависимости и расширения в чистом Base ----
 FROM ${BASE_IMAGE} AS base_tools
 
-# За основу берем официальный полнофункциональный образ Rayobrowse
+RUN uv pip install aiohttp rayobrowse >/dev/null && \
+    mkdir -p /app/extensions && \
+    /app/chrome-extensions.sh && \
+    rm -f /app/chrome-extensions.sh
+
+# ---- Stage 2: Финальный образ Rayobrowse без вызовов apt-get ----
 FROM ${RAYOBROWSE_IMAGE}
 
-ENV DEBIAN_FRONTEND=noninteractive \
-    PORT=9222 \
+ENV PORT=9222 \
     STEALTH_BROWSER_ACCEPT_TERMS=true \
     RAYOBROWSE_PORT=9222 \
     PATH="/app/.venv/bin:$PATH"
 
 WORKDIR /app
 
-# Копируем файлы DNS Sinkhole
+# Копируем бинарник dnsmasq и связанные библиотеки из base_tools
+COPY --from=base_tools /usr/sbin/dnsmasq /usr/sbin/dnsmasq
+COPY --from=base_tools /usr/lib/x86_64-linux-gnu/libnettle* /usr/lib/x86_64-linux-gnu/
+COPY --from=base_tools /usr/lib/x86_64-linux-gnu/libhogweed* /usr/lib/x86_64-linux-gnu/
+COPY --from=base_tools /usr/lib/x86_64-linux-gnu/libgmp* /usr/lib/x86_64-linux-gnu/
+
+# Копируем конфигурации и скрипты DNS Sinkhole
+COPY --from=base_tools /etc/dnsmasq.conf /etc/dnsmasq.conf
+COPY --from=base_tools /etc/dnsmasq.hosts /etc/dnsmasq.hosts
 COPY --from=base_tools /app/dns_sinkhole /app/dns_sinkhole
 COPY --from=base_tools /app/start_dns.sh /app/start_dns.sh
 COPY --from=base_tools /app/build_dns_blocklist.py /app/build_dns_blocklist.py
-COPY --from=base_tools /app/chrome-extensions.sh /app/chrome-extensions.sh
-COPY --from=base_tools /etc/dnsmasq.conf /etc/dnsmasq.conf
-COPY --from=base_tools /etc/dnsmasq.hosts /etc/dnsmasq.hosts
 
-# Устанавливаем dnsmasq (с запретом автозапуска через policy-rc.d) и окружение Python
-RUN echo "exit 101" > /usr/sbin/policy-rc.d && chmod +x /usr/sbin/policy-rc.d && \
-    apt-get update >/dev/null && apt-get install -y --no-install-recommends \
-      dnsmasq curl ca-certificates procps sudo python3-pip python3-venv unzip >/dev/null && \
-    rm -f /usr/sbin/policy-rc.d && \
-    python3 -m venv /app/.venv && \
-    /app/.venv/bin/pip install --no-cache-dir httpx aiohttp rayobrowse >/dev/null && \
-    chmod +x /app/start_dns.sh /app/chrome-extensions.sh && \
-    mkdir -p /data /app/extensions && \
-    /app/chrome-extensions.sh && rm /app/chrome-extensions.sh && \
-    rm -rf /var/lib/apt/lists/*
+# Копируем готовое виртуальное окружение Python и скачанные расширения
+COPY --from=base_tools /app/.venv /app/.venv
+COPY --from=base_tools /app/extensions /app/extensions
+
+RUN chmod +x /app/start_dns.sh /usr/sbin/dnsmasq && \
+    mkdir -p /data
 
 COPY serve.py /app/serve.py
 
@@ -49,7 +53,7 @@ export HTTPX_LOG_LEVEL=warning
 
 # 2. Запуск CDP сервера и моста
 echo -e "\n==================================\nstarting rayobrowse cdp bridge on port ${PORT:-9222}...\nconnect:\nwith sync_playwright() as p:\n    browser = p.chromium.connect_over_cdp('http://localhost:9222')\n==================================\n"
-exec /app/.venv/bin/python3 /app/serve.py
+exec /app/.venv/bin/python /app/serve.py
 EOF
 
 EXPOSE 9222
