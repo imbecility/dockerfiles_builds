@@ -7,18 +7,20 @@
 
 | Сервис | Pass Rate | stealth-probe | Sannysoft | Incolumitas | BrowserScan | DeviceAndBrowserInfo | reCAPTCHA v3 |
 |---|---|---|---|---|---|---|---|
-| Camoufox | 5/6 (83%) | ❌ | ✅ (0.965) | ✅ (0.969) | ✅ (1.0) | ✅ | ✅ (0.9) |
-| ClearcoteBrowser | 5/6 (83%) | ✅ | ✅ (1.0) | ✅ (1.0) | ✅ (1.0) | ❌ | ✅ (0.9) |
+| Camoufox | 5/6 (83%) | ❌ | ✅ (0.982) | ✅ (0.969) | ✅ (1.0) | ✅ | ✅ (0.9) |
+| ClearcoteBrowser | 6/6 (100%) | ✅ | ✅ (1.0) | ✅ (1.0) | ✅ (1.0) | ✅ | ✅ (0.9) |
 | CloakBrowser | 5/6 (83%) | ✅ | ✅ (1.0) | ✅ (1.0) | ✅ (1.0) | ❌ | ✅ (0.9) |
 | FortressBrowser | 5/6 (83%) | ✅ | ✅ (0.982) | ✅ (0.971) | ✅ (1.0) | ❌ | ✅ (0.9) |
+| RayobrowseBrowser | 5/6 (83%) | ✅ | ✅ (1.0) | ✅ (1.0) | ✅ (1.0) | ❌ | ✅ (0.9) |
 
 ### ⚡ Производительность и ресурсы
 
 | Сервис | Транспорт | Connect (ms) | Avg Nav (ms) | RAM (Старт) | RAM (Пик) | CPU (Пик) |
 |---|---|---|---|---|---|---|
-| Camoufox | `ws` | 32 | 7647 | 349.3MiB | 630.5MiB | 19.70% |
-| ClearcoteBrowser | `cdp` | 5678 | 8909 | 583.6MiB | 1.38GiB | 139.65% |
-| CloakBrowser | `cdp` | 9650 | 8418 | 1015MiB | 1.252GiB | 85.06% |
-| FortressBrowser | `cdp` | 7822 | 8010 | 861.7MiB | 1.262GiB | 43.79% |
+| Camoufox | `ws` | 34 | 10032 | 377.3MiB | 716.2MiB | 73.49% |
+| ClearcoteBrowser | `cdp` | 5647 | 8711 | 590.5MiB | 1.452GiB | 105.40% |
+| CloakBrowser | `cdp` | 8185 | 8094 | 924.9MiB | 1.306GiB | 381.64% |
+| FortressBrowser | `cdp` | 6913 | 7598 | 861.2MiB | 1.215GiB | 44.67% |
+| RayobrowseBrowser | `cdp` | 55616 | 7590 | 840.4MiB | 1.198GiB | 38.02% |
 
 <!-- BENCHMARK_TABLE_END -->
