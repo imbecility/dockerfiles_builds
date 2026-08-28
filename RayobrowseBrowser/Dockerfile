@@ -11,15 +11,17 @@ ENV PORT=9222 \
     PYTHONPATH=/app/rayobyte_python/src \
     STEALTH_BROWSER_ACCEPT_TERMS=true \
     XDG_CONFIG_HOME=/home/browser/.config \
-    XDG_DATA_HOME=/home/browser/.local/share
+    XDG_DATA_HOME=/home/browser/.local/share \
+    STEALTH_BROWSER_DIR=/opt/stealth-browser
 
+# Системные зависимости: добавлен zstd и tar для распаковки шрифтов
 RUN apt-get update >/dev/null && apt-get install -y --no-install-recommends \
     tigervnc-standalone-server openbox x11-xserver-utils x11-utils xdotool \
     libnss3 libnspr4 libatk1.0-0 libatk-bridge2.0-0 libcups2 libdrm2 \
     libxkbcommon0 libxcomposite1 libxdamage1 libxfixes3 libxrandr2 libgbm1 \
     libpango-1.0-0 libcairo2 libasound2 libxshmfence1 libglib2.0-0 \
     libgl1-mesa-dri libegl-mesa0 fonts-unifont fonts-wqy-zenhei \
-    gosu unzip procps ca-certificates >/dev/null && \
+    gosu unzip zstd tar procps ca-certificates >/dev/null && \
     useradd -m -u 1000 browser && \
     mkdir -p /data/data /data/cache /data/logs /home/browser /app/extensions && \
     chown -R browser:browser /data /home/browser /app && \
@@ -30,15 +32,21 @@ COPY --from=rayobrowse_upstream /usr/local /usr/local
 COPY --from=rayobrowse_upstream /opt/stealth-browser /opt/stealth-browser
 COPY --from=rayobrowse_upstream /app/rayobyte_python /app/rayobyte_python
 
-# Предварительная загрузка GeoLite2 на этапе сборки образа
-RUN mkdir -p /opt/stealth-browser/geolite2 && \
-    python3 -c "from rayobrowse.updater.auto_update import ensure_geolite2_db; ensure_geolite2_db()" 2>/dev/null || true
+# Симлинки и права на структуру stealth-browser
+RUN mkdir -p /home/browser/.stealth-browser && \
+    ln -sfn /opt/stealth-browser/fonts /home/browser/.stealth-browser/fonts && \
+    ln -sfn /opt/stealth-browser/geolite2 /home/browser/.stealth-browser/geolite2 && \
+    chown -R browser:browser /home/browser /opt/stealth-browser /app/rayobyte_python
 
+# Предварительная загрузка и запекание GeoLite2 и шрифтов в слой образа
+RUN gosu browser python3 -c "from rayobrowse.updater.auto_update import ensure_geolite2_db; ensure_geolite2_db()" 2>/dev/null || true
+RUN gosu browser python3 -c "from rayobrowse.updater.assets import ensure_asset; ensure_asset('fonts')" 2>/dev/null || true
+
+# Sandbox и финальные права
 RUN chmod -R 755 /opt/stealth-browser && \
     for sb in $(find /opt/stealth-browser -type f -name "*chrome*sandbox*"); do \
         chown root:root "$sb" && chmod 4755 "$sb"; \
     done && \
-    chown -R browser:browser /opt/stealth-browser /app/rayobyte_python /home/browser /data && \
     ldconfig
 
 WORKDIR /app

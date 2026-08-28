@@ -1,9 +1,11 @@
 /opt/stealth-browser
+/home/browser
 /app/rayobyte_python
 /app/extensions
-/home/browser
 /data
 /usr/local
+/usr/bin/zstd
+/usr/bin/tar
 /usr/bin/Xvnc
 /usr/bin/openbox
 /usr/sbin/dnsmasq

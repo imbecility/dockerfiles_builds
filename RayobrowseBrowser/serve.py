@@ -23,6 +23,7 @@ HEADLESS = os.getenv("RAYOBROWSE_HEADLESS", "false")
 
 current_browser_ws: str | None = None
 browser_lock = asyncio.Lock()
+daemon_ready_event = asyncio.Event()
 browser_ready_event = asyncio.Event()
 
 
@@ -83,6 +84,9 @@ def get_extensions_arg() -> str:
 
 async def ensure_active_browser() -> str:
     global current_browser_ws
+    # Ожидание готовности основного демона перед обращением к /connect
+    await asyncio.wait_for(daemon_ready_event.wait(), timeout=60.0)
+
     async with browser_lock:
         if current_browser_ws:
             try:
@@ -131,10 +135,10 @@ async def ensure_active_browser() -> str:
 
 async def handle_version(request: web.Request) -> web.Response:
     try:
-        await ensure_active_browser()
+        await asyncio.wait_for(ensure_active_browser(), timeout=45.0)
     except Exception as e:
         logger.error(f"Ошибка ожидания браузера в handle_version: {e}")
-        return web.json_response({"error": str(e)}, status=500)
+        return web.json_response({"error": str(e)}, status=503)
 
     host = request.host
     return web.json_response({
@@ -161,6 +165,8 @@ async def handle_json_list(request: web.Request) -> web.Response:
 
 
 async def handle_health(request: web.Request) -> web.Response:
+    if not daemon_ready_event.is_set():
+        return web.json_response({"success": False, "status": "starting"}, status=503)
     try:
         async with aiohttp.ClientSession() as session:
             async with session.get(f"http://127.0.0.1:{INTERNAL_PORT}/health", timeout=3.0) as resp:
@@ -206,12 +212,13 @@ async def handle_cdp_ws(request: web.Request) -> web.WebSocketResponse:
 
 async def wait_for_daemon():
     logger.info(f"Ожидание старта Rayobrowse Daemon на порту {INTERNAL_PORT}...")
-    for _ in range(60):
+    for _ in range(120):
         try:
             async with aiohttp.ClientSession() as session:
                 async with session.get(f"http://127.0.0.1:{INTERNAL_PORT}/health", timeout=1.0) as resp:
                     if resp.status == 200:
                         logger.info("Rayobrowse Daemon успешно запущен.")
+                        daemon_ready_event.set()
                         return
         except Exception:
             pass
@@ -222,10 +229,8 @@ async def wait_for_daemon():
 async def main():
     init_display_and_wm()
 
-    # 1. Запуск HTTP/CDP сервера на 9222 с поддержкой замыкающих слэшей
+    # 1. Запуск HTTP/CDP сервера на порту 9222
     app = web.Application()
-
-    # Роуты версий и целей (как с '/' так и без)
     for route in ["/json/version", "/json/version/"]:
         app.router.add_get(route, handle_version)
     for route in ["/json", "/json/", "/json/list", "/json/list/"]:
@@ -235,7 +240,6 @@ async def main():
     for route in ["/json/protocol", "/json/protocol/"]:
         app.router.add_get(route, handle_version)
 
-    # CDP WebSocket маршруты
     app.router.add_get("/devtools/browser/{tail:.*}", handle_cdp_ws)
     app.router.add_get("/devtools/page/{tail:.*}", handle_cdp_ws)
     app.router.add_get("/cdp/{tail:.*}", handle_cdp_ws)
@@ -248,7 +252,7 @@ async def main():
     await site.start()
     logger.info(f"✨ CDP сервер открыт и слушает: http://0.0.0.0:{EXTERNAL_PORT}")
 
-    # 2. Запуск официального демона Rayobrowse
+    # 2. Запуск демона Rayobrowse
     env = dict(os.environ)
     env["STEALTH_BROWSER_ACCEPT_TERMS"] = "true"
     env["PYTHONPATH"] = "/app/rayobyte_python/src"
@@ -260,7 +264,7 @@ async def main():
 
     await wait_for_daemon()
 
-    # 3. Фоновый прогрев первого инстанса браузера
+    # 3. Фоновый прогрев первой сессии
     asyncio.create_task(ensure_active_browser())
 
     try:
