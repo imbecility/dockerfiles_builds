@@ -7,7 +7,9 @@ FROM ${RAYOBROWSE_IMAGE} AS rayobrowse_upstream
 
 FROM ${BASE_IMAGE}
 
-ENV PORT=9222 \
+ENV PATH="/usr/local/bin:/usr/bin:/bin" \
+    VIRTUAL_ENV="" \
+    PORT=9222 \
     PYTHONPATH=/app/rayobyte_python/src \
     STEALTH_BROWSER_ACCEPT_TERMS=true \
     STEALTH_BROWSER_DIR=/opt/stealth-browser \
@@ -32,13 +34,43 @@ COPY --from=rayobrowse_upstream /usr/local /usr/local
 COPY --from=rayobrowse_upstream /opt/stealth-browser /opt/stealth-browser
 COPY --from=rayobrowse_upstream /app/rayobyte_python /app/rayobyte_python
 
-# 1. Распаковка Playwright driver для гарантированного создания chromiumSwitches.js
-RUN python3 -c "from playwright.sync_api import sync_playwright; p = sync_playwright().start(); p.stop()" 2>/dev/null || true && \
-    SWITCHES=$(find /usr/local -name "chromiumSwitches.js" 2>/dev/null | head -n 1) && \
-    if [ -n "$SWITCHES" ]; then \
-        mkdir -p /usr/local/lib/python3.12/site-packages/playwright/driver/package/lib/server/chromium && \
-        cp "$SWITCHES" /usr/local/lib/python3.12/site-packages/playwright/driver/package/lib/server/chromium/chromiumSwitches.js ; \
-    fi
+# 1. Гарантированное размещение chromiumSwitches.js со всеми headless/shm флагами
+RUN mkdir -p /usr/local/lib/python3.12/site-packages/playwright/driver/package/lib/server/chromium && \
+    cat <<'EOF' > /usr/local/lib/python3.12/site-packages/playwright/driver/package/lib/server/chromium/chromiumSwitches.js
+module.exports = {
+  defaultArgs: [
+    '--disable-field-trial-config',
+    '--disable-background-networking',
+    '--enable-features=NetworkService,NetworkServiceInProcess',
+    '--disable-background-timer-throttling',
+    '--disable-backgrounding-occluded-windows',
+    '--disable-back-forward-cache',
+    '--disable-breakpad',
+    '--disable-client-side-phishing-detection',
+    '--disable-component-extensions-with-background-pages',
+    '--disable-component-update',
+    '--no-default-browser-check',
+    '--disable-default-apps',
+    '--disable-dev-shm-usage',
+    '--disable-hang-monitor',
+    '--disable-ipc-flooding-protection',
+    '--disable-popup-blocking',
+    '--disable-prompt-on-repost',
+    '--disable-renderer-backgrounding',
+    '--force-color-profile=srgb',
+    '--metrics-recording-only',
+    '--no-first-run',
+    '--password-store=basic',
+    '--use-mock-keychain',
+    '--no-service-autorun',
+    '--export-tagged-pdf',
+    '--enable-unsafe-swiftshader',
+    '--use-gl=angle',
+    '--use-angle=swiftshader',
+    '--no-sandbox'
+  ]
+};
+EOF
 
 # 2. Симлинк домашней директории на запеченные бинарники
 RUN rm -rf /home/browser/.stealth-browser && \
@@ -112,8 +144,8 @@ done
 
 echo "[rayobrowse] Дисплей :99 и Openbox успешно инициализированы."
 
-# 4. Запуск serve.py
-exec gosu browser python3 /app/serve.py
+# 4. Запуск serve.py через Python 3.12
+exec gosu browser /usr/local/bin/python3 /app/serve.py
 EOF
 
 EXPOSE ${PORT}

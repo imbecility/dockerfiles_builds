@@ -68,18 +68,15 @@ async def ensure_active_browser() -> str:
                 else:
                     current_browser_ws = text
 
-                logger.info(f"🎉 Stealth-браузер успешно готов: {current_browser_ws}")
+                logger.info(f"🎉 Stealth-браузер готов: {current_browser_ws}")
                 return current_browser_ws
 
 
 # --- HTTP Handlers ---
 
 async def handle_version(request: web.Request) -> web.Response:
-    try:
-        await asyncio.wait_for(ensure_active_browser(), timeout=60.0)
-    except Exception as e:
-        logger.error(f"Ошибка ожидания браузера в handle_version: {e}")
-        return web.json_response({"error": str(e)}, status=503)
+    if not daemon_ready_event.is_set():
+        return web.json_response({"status": "starting"}, status=503)
 
     host = request.host
     return web.json_response({
@@ -204,13 +201,13 @@ async def main():
     await site.start()
     logger.info(f"✨ CDP сервер открыт и слушает: http://0.0.0.0:{EXTERNAL_PORT}")
 
-    # 2. Запуск демона Rayobrowse
+    # 2. Запуск демона Rayobrowse через Python 3.12
     env = dict(os.environ)
     env["STEALTH_BROWSER_ACCEPT_TERMS"] = "true"
     env["PYTHONPATH"] = "/app/rayobyte_python/src"
 
     daemon_proc = subprocess.Popen(
-        [sys.executable, "-m", "rayobrowse.daemon", "run", "--host", "127.0.0.1", "--port", str(INTERNAL_PORT)],
+        ["/usr/local/bin/python3", "-m", "rayobrowse.daemon", "run", "--host", "127.0.0.1", "--port", str(INTERNAL_PORT)],
         env=env,
         stdout=sys.stdout,
         stderr=sys.stderr,
