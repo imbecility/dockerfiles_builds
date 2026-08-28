@@ -2,28 +2,37 @@
 ARG BASE_IMAGE=base:latest
 ARG RAYOBROWSE_IMAGE=rayobyte/rayobrowse:latest
 
-# Берем скрипты DNS-sinkhole из Base
+# 1. Скачиваем расширения в чистом Base
 FROM ${BASE_IMAGE} AS base_tools
 
+RUN mkdir -p /app/extensions && \
+    /app/chrome-extensions.sh && \
+    rm -f /app/chrome-extensions.sh
+
+# 2. Финальный образ Rayobrowse (без вызова apt-get)
 FROM ${RAYOBROWSE_IMAGE}
 
 USER root
 
-# Копируем DNS sinkhole и расширения
+# Копируем бинарник dnsmasq и его зависимости из base_tools
+COPY --from=base_tools /usr/sbin/dnsmasq /usr/sbin/dnsmasq
+COPY --from=base_tools /usr/lib/x86_64-linux-gnu/libnettle* /usr/lib/x86_64-linux-gnu/
+COPY --from=base_tools /usr/lib/x86_64-linux-gnu/libhogweed* /usr/lib/x86_64-linux-gnu/
+COPY --from=base_tools /usr/lib/x86_64-linux-gnu/libgmp* /usr/lib/x86_64-linux-gnu/
+
+# Копируем конфигурации и скрипты DNS Sinkhole
 COPY --from=base_tools /etc/dnsmasq.conf /etc/dnsmasq.conf
 COPY --from=base_tools /etc/dnsmasq.hosts /etc/dnsmasq.hosts
 COPY --from=base_tools /app/dns_sinkhole /app/dns_sinkhole
 COPY --from=base_tools /app/start_dns.sh /app/start_dns.sh
 COPY --from=base_tools /app/build_dns_blocklist.py /app/build_dns_blocklist.py
-COPY --from=base_tools /app/chrome-extensions.sh /app/chrome-extensions.sh
 
-# Скачиваем расширения и ставим dnsmasq
-RUN apt-get update >/dev/null && apt-get install -y --no-install-recommends dnsmasq >/dev/null && \
-    chmod +x /app/start_dns.sh /app/chrome-extensions.sh && \
-    mkdir -p /app/extensions /data/data /data/cache /data/logs && \
-    /app/chrome-extensions.sh && rm -f /app/chrome-extensions.sh && \
-    chown -R browser:browser /app/extensions /data && \
-    rm -rf /var/lib/apt/lists/*
+# Копируем готовые расширения
+COPY --from=base_tools /app/extensions /app/extensions
+
+RUN chmod +x /app/start_dns.sh /usr/sbin/dnsmasq && \
+    mkdir -p /data/data /data/cache /data/logs && \
+    chown -R browser:browser /app/extensions /data
 
 COPY serve.py /app/serve.py
 
