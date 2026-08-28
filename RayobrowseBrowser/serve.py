@@ -20,8 +20,9 @@ EXTERNAL_PORT = int(os.getenv("PORT", "9222"))
 TARGET_OS = os.getenv("RAYOBROWSE_OS", "windows")
 HEADLESS = os.getenv("RAYOBROWSE_HEADLESS", "false")
 
-BROWSER_WS_URL: str | None = None
-browser_ready_event = asyncio.Event()
+current_browser_ws: str | None = None
+browser_lock = asyncio.Lock()
+daemon_ready_event = asyncio.Event()
 
 
 def get_extensions_arg() -> str:
@@ -32,54 +33,54 @@ def get_extensions_arg() -> str:
     return ",".join(dirs)
 
 
-async def init_singleton_browser():
-    """Единожды создает постоянную сессию браузера при старте контейнера."""
-    global BROWSER_WS_URL
-    logger.info("Запуск прогрева singleton-сессии браузера...")
+async def get_or_create_browser() -> str:
+    """Создает свежий браузер по требованию (on-demand) без риска закрытия по idle-таймауту."""
+    global current_browser_ws
+    await daemon_ready_event.wait()
 
-    params = {
-        "os": TARGET_OS,
-        "headless": HEADLESS,
-        "keepAlive": "true",
-        "maxLifetime": "86400",
-    }
-    exts = get_extensions_arg()
-    if exts:
-        params["extension"] = exts
+    async with browser_lock:
+        if current_browser_ws:
+            return current_browser_ws
 
-    async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=120)) as session:
-        for attempt in range(1, 4):
-            try:
-                async with session.get(f"http://127.0.0.1:{INTERNAL_PORT}/connect", params=params) as resp:
-                    if resp.status == 200:
-                        text = (await resp.text()).strip()
-                        if "://" in text:
-                            parts = text.split("://", 1)[1]
-                            path = parts.split("/", 1)[1] if "/" in parts else ""
-                            BROWSER_WS_URL = f"ws://127.0.0.1:{INTERNAL_PORT}/{path}"
-                        else:
-                            BROWSER_WS_URL = text
+        logger.info("Запрос создания активного инстанса Chromium в Rayobrowse Daemon...")
+        params = {
+            "os": TARGET_OS,
+            "headless": HEADLESS,
+            "keepAlive": "true",
+            "maxLifetime": "86400",
+        }
+        exts = get_extensions_arg()
+        if exts:
+            params["extension"] = exts
 
-                        logger.info(f"🎉 Singleton-сессия браузера готова: {BROWSER_WS_URL}")
-                        browser_ready_event.set()
-                        return
-                    else:
-                        err = await resp.text()
-                        logger.warning(f"Попытка {attempt} /connect вернула {resp.status}: {err}")
-                        await asyncio.sleep(2.0)
-            except Exception as e:
-                logger.warning(f"Ошибка запроса /connect (попытка {attempt}): {e}")
-                await asyncio.sleep(2.0)
+        async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=90)) as session:
+            url = f"http://127.0.0.1:{INTERNAL_PORT}/connect"
+            async with session.get(url, params=params) as resp:
+                if resp.status != 200:
+                    err_body = await resp.text()
+                    raise RuntimeError(f"Daemon /connect вернул {resp.status}: {err_body}")
 
-    logger.error("Не удалось инициализировать браузер после 3 попыток!")
+                text = (await resp.text()).strip()
+                if "://" in text:
+                    parts = text.split("://", 1)[1]
+                    path = parts.split("/", 1)[1] if "/" in parts else ""
+                    current_browser_ws = f"ws://127.0.0.1:{INTERNAL_PORT}/{path}"
+                else:
+                    current_browser_ws = text
+
+                logger.info(f"🎉 Инстанс готов: {current_browser_ws}")
+                return current_browser_ws
 
 
 # --- HTTP Handlers ---
 
 async def handle_version(request: web.Request) -> web.Response:
-    # Мгновенный ответ без каких-либо обращений к демону
-    if not browser_ready_event.is_set():
-        return web.json_response({"status": "starting", "message": "Browser is initializing"}, status=503)
+    try:
+        # Создаем или получаем живой браузер
+        await get_or_create_browser()
+    except Exception as e:
+        logger.error(f"Ошибка создания браузера для /json/version: {e}")
+        return web.json_response({"status": "error", "message": str(e)}, status=503)
 
     host = request.host
     return web.json_response({
@@ -106,7 +107,7 @@ async def handle_json_list(request: web.Request) -> web.Response:
 
 
 async def handle_health(request: web.Request) -> web.Response:
-    if not browser_ready_event.is_set():
+    if not daemon_ready_event.is_set():
         return web.json_response({"success": False, "status": "starting"}, status=503)
     return web.json_response({"success": True, "status": "healthy"})
 
@@ -114,14 +115,15 @@ async def handle_health(request: web.Request) -> web.Response:
 # --- WebSocket Proxy ---
 
 async def handle_cdp_ws(request: web.Request) -> web.WebSocketResponse:
+    global current_browser_ws
     client_ws = web.WebSocketResponse(max_msg_size=0, timeout=None, autoping=True)
     await client_ws.prepare(request)
 
-    await browser_ready_event.wait()
-    logger.info(f"CDP клиент подключен, проксирование на {BROWSER_WS_URL}")
+    target_ws = await get_or_create_browser()
+    logger.info(f"CDP сессия клиента открыта -> проксирование на {target_ws}")
 
     async with aiohttp.ClientSession() as session:
-        async with session.ws_connect(BROWSER_WS_URL, max_msg_size=0, timeout=None, autoping=True) as server_ws:
+        async with session.ws_connect(target_ws, max_msg_size=0, timeout=None, autoping=True) as server_ws:
             async def forward(src, dst):
                 try:
                     async for msg in src:
@@ -141,6 +143,7 @@ async def handle_cdp_ws(request: web.Request) -> web.WebSocketResponse:
             t2.cancel()
 
     logger.info("CDP сессия клиента завершена.")
+    current_browser_ws = None
     return client_ws
 
 
@@ -152,6 +155,7 @@ async def wait_for_daemon():
                 async with session.get(f"http://127.0.0.1:{INTERNAL_PORT}/health") as resp:
                     if resp.status == 200:
                         logger.info("Rayobrowse Daemon успешно запущен.")
+                        daemon_ready_event.set()
                         return
         except Exception:
             pass
@@ -160,7 +164,7 @@ async def wait_for_daemon():
 
 
 async def main():
-    # 1. Запуск внешнего прокси-сервера на 9222
+    # 1. Запуск внешнего HTTP/CDP сервера
     app = web.Application()
     for route in ["/json/version", "/json/version/"]:
         app.router.add_get(route, handle_version)
@@ -183,7 +187,7 @@ async def main():
     await site.start()
     logger.info(f"✨ CDP сервер открыт и слушает: http://0.0.0.0:{EXTERNAL_PORT}")
 
-    # 2. Запуск демона Rayobrowse
+    # 2. Запуск официального демона Rayobrowse
     env = dict(os.environ)
     env["STEALTH_BROWSER_ACCEPT_TERMS"] = "true"
     env["PYTHONPATH"] = "/app/rayobyte_python/src"
@@ -196,9 +200,6 @@ async def main():
     )
 
     await wait_for_daemon()
-
-    # 3. ЕДИНСТВЕННЫЙ фоновый запуск браузера при старте контейнера
-    asyncio.create_task(init_singleton_browser())
 
     try:
         while True:
