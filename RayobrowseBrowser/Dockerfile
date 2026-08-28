@@ -32,19 +32,24 @@ COPY --from=rayobrowse_upstream /usr/local /usr/local
 COPY --from=rayobrowse_upstream /opt/stealth-browser /opt/stealth-browser
 COPY --from=rayobrowse_upstream /app/rayobyte_python /app/rayobyte_python
 
-# 1. Распаковка внутреннего драйвера Playwright для генерации chromiumSwitches.js
-RUN python3 -c "from playwright._impl._driver import compute_driver_executable; compute_driver_executable()" 2>/dev/null || true
+# 1. Распаковка Playwright и гарантированное размещение chromiumSwitches.js
+RUN python3 -c "from playwright._impl._driver import compute_driver_executable; compute_driver_executable()" 2>/dev/null || true && \
+    SWITCHES=$(find /usr/local -name "chromiumSwitches.js" 2>/dev/null | head -n 1) && \
+    if [ -n "$SWITCHES" ]; then \
+        mkdir -p /usr/local/lib/python3.12/site-packages/playwright/driver/package/lib/server/chromium && \
+        cp "$SWITCHES" /usr/local/lib/python3.12/site-packages/playwright/driver/package/lib/server/chromium/chromiumSwitches.js ; \
+    fi
 
 # 2. Симлинк домашней директории на запеченные бинарники
 RUN rm -rf /home/browser/.stealth-browser && \
     ln -sfn /opt/stealth-browser /home/browser/.stealth-browser && \
     chown -R browser:browser /home/browser /opt/stealth-browser /app /data
 
-# 3. Предзагрузка GeoIP и шрифтов в слой образа во время сборки
+# 3. Предзагрузка GeoIP и шрифтов в слой образа
 RUN gosu browser python3 -c "from rayobrowse.updater.auto_update import ensure_geolite2_db; ensure_geolite2_db()" 2>/dev/null || true
 RUN gosu browser python3 -c "from rayobrowse.updater.assets import ensure_asset; ensure_asset('fonts')" 2>/dev/null || true
 
-# 4. Установка прав root:root + setuid (4755) для sandbox
+# 4. Права root:root + setuid (4755) для sandbox
 RUN chmod -R 755 /opt/stealth-browser && \
     for sb in $(find /opt/stealth-browser -type f -name "*sandbox*"); do \
         chown root:root "$sb" && chmod 4755 "$sb"; \
@@ -80,7 +85,6 @@ for i in $(seq 1 30); do
     sleep 0.1
 done
 
-# Темы и настройки Openbox
 mkdir -p /home/browser/.local/share/themes/NoBorder/openbox-3 /home/browser/.config/openbox
 cat > /home/browser/.local/share/themes/NoBorder/openbox-3/themerc << 'THEME'
 border.width: 0
