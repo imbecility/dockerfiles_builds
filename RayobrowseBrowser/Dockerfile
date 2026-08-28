@@ -34,43 +34,11 @@ COPY --from=rayobrowse_upstream /usr/local /usr/local
 COPY --from=rayobrowse_upstream /opt/stealth-browser /opt/stealth-browser
 COPY --from=rayobrowse_upstream /app/rayobyte_python /app/rayobyte_python
 
-# 1. Размещение chromiumSwitches.js
-RUN mkdir -p /usr/local/lib/python3.12/site-packages/playwright/driver/package/lib/server/chromium && \
-    cat <<'EOF' > /usr/local/lib/python3.12/site-packages/playwright/driver/package/lib/server/chromium/chromiumSwitches.js
-module.exports = {
-  defaultArgs: [
-    '--disable-field-trial-config',
-    '--disable-background-networking',
-    '--enable-features=NetworkService,NetworkServiceInProcess',
-    '--disable-background-timer-throttling',
-    '--disable-backgrounding-occluded-windows',
-    '--disable-back-forward-cache',
-    '--disable-breakpad',
-    '--disable-client-side-phishing-detection',
-    '--disable-component-extensions-with-background-pages',
-    '--disable-component-update',
-    '--no-default-browser-check',
-    '--disable-default-apps',
-    '--disable-dev-shm-usage',
-    '--disable-hang-monitor',
-    '--disable-ipc-flooding-protection',
-    '--disable-popup-blocking',
-    '--disable-prompt-on-repost',
-    '--disable-renderer-backgrounding',
-    '--force-color-profile=srgb',
-    '--metrics-recording-only',
-    '--no-first-run',
-    '--password-store=basic',
-    '--use-mock-keychain',
-    '--no-service-autorun',
-    '--export-tagged-pdf',
-    '--enable-unsafe-swiftshader',
-    '--use-gl=angle',
-    '--use-angle=swiftshader',
-    '--no-sandbox'
-  ]
-};
-EOF
+# 1. Внедрение wrapper для Chrome с принудительным --disable-dev-shm-usage и --no-sandbox
+RUN REAL_CHROME=$(find /opt/stealth-browser/chromium -type f -name "chrome" | head -n 1) && \
+    mv "$REAL_CHROME" "${REAL_CHROME}-bin" && \
+    printf '#!/bin/bash\nexec "%s-bin" --disable-dev-shm-usage --no-sandbox "$@"\n' "$REAL_CHROME" > "$REAL_CHROME" && \
+    chmod +x "$REAL_CHROME" "${REAL_CHROME}-bin"
 
 # 2. Симлинк домашней директории на запеченные бинарники
 RUN mkdir -p /home/browser && \
@@ -145,7 +113,7 @@ done
 
 echo "[rayobrowse] Дисплей :99 и Openbox успешно инициализированы."
 
-# 4. Запуск serve.py через Python 3.12
+# 4. Запуск serve.py
 exec gosu browser /usr/local/bin/python3 /app/serve.py
 EOF
 
