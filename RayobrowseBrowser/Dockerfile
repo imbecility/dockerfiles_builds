@@ -9,13 +9,15 @@ RUN mkdir -p /app/extensions && \
     /app/chrome-extensions.sh && \
     rm -f /app/chrome-extensions.sh
 
-# 2. Финальный образ Rayobrowse (без вызова apt-get)
+# 2. Финальный образ Rayobrowse
 FROM ${RAYOBROWSE_IMAGE}
 
 USER root
 
-# Копируем бинарник dnsmasq и его зависимости из base_tools
+# Копируем бинарник dnsmasq и ВСЕ его системные библиотеки из base_tools
 COPY --from=base_tools /usr/sbin/dnsmasq /usr/sbin/dnsmasq
+COPY --from=base_tools /usr/lib/x86_64-linux-gnu/libnetfilter* /usr/lib/x86_64-linux-gnu/
+COPY --from=base_tools /usr/lib/x86_64-linux-gnu/libnfnetlink* /usr/lib/x86_64-linux-gnu/
 COPY --from=base_tools /usr/lib/x86_64-linux-gnu/libnettle* /usr/lib/x86_64-linux-gnu/
 COPY --from=base_tools /usr/lib/x86_64-linux-gnu/libhogweed* /usr/lib/x86_64-linux-gnu/
 COPY --from=base_tools /usr/lib/x86_64-linux-gnu/libgmp* /usr/lib/x86_64-linux-gnu/

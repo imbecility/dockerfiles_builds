@@ -13,4 +13,13 @@ if not data:
     print("Не удалось определить порт: EXPOSE в Dockerfile не задан.", file=stderr)
     exit(1)
 
-print(list(data.keys())[0].split("/")[0])
+ports = [k.split("/")[0] for k in data.keys()]
+
+# Приоритет CDP/WS портам (9222, 7861, 7860) над вспомогательными (noVNC 6080, метрики и т.д.)
+preferred = ["9222", "7861", "7860"]
+for p in preferred:
+    if p in ports:
+        print(p)
+        exit(0)
+
+print(ports[0])
