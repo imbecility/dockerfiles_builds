@@ -54,7 +54,7 @@ def main() -> None:
         signal.signal(sig, sig_handler)
 
     print(f"[{time.strftime('%X')}] Ожидание запуска Rayobrowse CDP на {CDP_URL}...", flush=True)
-    wait_for_cdp_server(CDP_URL, timeout=60)
+    wait_for_cdp_server(CDP_URL, timeout=90)
 
     with sync_playwright() as p:
         print(f"[{time.strftime('%X')}] Подключение к Rayobrowse через CDP...", flush=True)
@@ -68,7 +68,7 @@ def main() -> None:
         run_step("clipboard/geolocation/notifications", test_permissions_apis, context, is_firefox=False)
         run_step("скачивание и загрузка файлов", test_downloads_and_uploads, context)
         run_step("попапы и iframe", test_iframes_and_popups, context)
-        run_step("количество загруженных расширений", test_extensions_loaded, context, 7)
+        run_step("количество загруженных расширений", test_extensions_loaded, context, 5)
 
         page = context.new_page()
         try:

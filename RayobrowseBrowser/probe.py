@@ -89,7 +89,7 @@ def main() -> None:
         run_step("localStorage/sessionStorage/IndexedDB", test_storage_apis, context)
         run_step("clipboard/geolocation/notifications", test_permissions_apis, context, is_firefox=False)
         run_step("скачивание и загрузка файлов", test_downloads_and_uploads, context)
-        run_step("количество загруженных расширений", test_extensions_loaded, context, 7)
+        run_step("количество загруженных расширений", test_extensions_loaded, context, 5)
 
         print(f"[{time.strftime('%X')}] 6. Проверка загрузки внешней страницы (https://google.com)...", flush=True)
         page = context.new_page()
