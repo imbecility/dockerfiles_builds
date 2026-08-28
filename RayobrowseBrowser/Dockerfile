@@ -2,7 +2,7 @@
 ARG BASE_IMAGE=base:latest
 ARG RAYOBROWSE_IMAGE=rayobyte/rayobrowse:latest
 
-# 1. Скачиваем расширения и собираем ВСЕ библиотеки для dnsmasq
+# 1. Собираем библиотеки для dnsmasq и скачиваем расширения в Base
 FROM ${BASE_IMAGE} AS base_tools
 
 RUN mkdir -p /app/extensions /tmp/dnsmasq_libs && \
@@ -31,9 +31,18 @@ COPY --from=base_tools /app/build_dns_blocklist.py /app/build_dns_blocklist.py
 # Копируем готовые расширения
 COPY --from=base_tools /app/extensions /app/extensions
 
+# Настраиваем SUID песочницы Chrome, права и скачиваем GeoLite2 один раз при сборке
 RUN chmod +x /app/start_dns.sh /usr/sbin/dnsmasq && \
-    mkdir -p /data/data /data/cache /data/logs && \
-    chown -R browser:browser /app/extensions /data
+    mkdir -p /data/data /data/cache /data/logs /opt/stealth-browser/geolite2 && \
+    for sandbox in /opt/stealth-browser/chromium/chrome_sandbox /opt/stealth-browser/chromium/chrome-sandbox; do \
+      if [ -e "$sandbox" ]; then \
+        REAL=$(readlink -f "$sandbox" 2>/dev/null || echo "$sandbox"); \
+        chown root:root "$REAL" 2>/dev/null && chmod 4755 "$REAL" 2>/dev/null || true; \
+      fi; \
+    done && \
+    python3 -c "from rayobrowse.updater.auto_update import ensure_geolite2_db; ensure_geolite2_db()" 2>/dev/null || true && \
+    chown -R browser:browser /app/extensions /data /opt/stealth-browser && \
+    chmod -R 777 /tmp /data /app/extensions
 
 COPY serve.py /app/serve.py
 
@@ -55,7 +64,7 @@ for _ in $(seq 1 30); do
     sleep 0.1
 done
 
-# 4. Запуск оконного менеджера Openbox
+# 4. Запуск оконного менеджера Openbox с ожиданием готовности
 export DISPLAY=:99
 mkdir -p /home/browser/.config/openbox
 cat <<'OBXML' > /home/browser/.config/openbox/rc.xml
@@ -66,6 +75,11 @@ cat <<'OBXML' > /home/browser/.config/openbox/rc.xml
 OBXML
 chown -R browser:browser /home/browser/.config
 gosu browser openbox &
+
+for _ in $(seq 1 30); do
+    xprop -root _NET_SUPPORTING_WM_CHECK 2>/dev/null | grep -q WINDOW && break
+    sleep 0.1
+done
 
 # 5. Запуск моста и демона
 exec python3 /app/serve.py

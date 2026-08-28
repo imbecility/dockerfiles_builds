@@ -15,7 +15,7 @@ EXTERNAL_PORT = int(os.environ.get("PORT", "9222"))
 DAEMON_CONNECT_URL = f"http://127.0.0.1:{INTERNAL_PORT}/connect"
 DAEMON_HEALTH_URL = f"http://127.0.0.1:{INTERNAL_PORT}/health"
 
-# 1. Запуск официального демона на изолированном порту 9223
+# 1. Запуск официального демона на порту 9223
 env = os.environ.copy()
 env["STEALTH_BROWSER_ACCEPT_TERMS"] = "true"
 env["STEALTH_BROWSER_NOVNC"] = "false"
@@ -34,15 +34,22 @@ daemon_proc = subprocess.Popen(cmd, env=env)
 
 # 2. Ожидание запуска демона
 print(f"[rayobrowse] Ожидание готовности демона на 127.0.0.1:{INTERNAL_PORT}...", flush=True)
+daemon_ready = False
 for _ in range(80):
     try:
         r = requests.get(DAEMON_HEALTH_URL, timeout=1)
         if r.status_code == 200 and r.json().get("success"):
+            daemon_ready = True
             print(f"[rayobrowse] Демон успешно запущен на порту {INTERNAL_PORT}.", flush=True)
             break
     except Exception:
         pass
     time.sleep(0.5)
+
+if not daemon_ready:
+    print("[rayobrowse] FATAL: Демон не ответил на /health!", flush=True)
+    daemon_proc.terminate()
+    sys.exit(1)
 
 # 3. Инициализация постоянной сессии с расширениями
 ext_paths = [str(p) for p in Path("/app/extensions").iterdir() if p.is_dir()]
@@ -56,10 +63,21 @@ if ext_paths:
     params["extension"] = ",".join(ext_paths)
 
 print(f"[rayobrowse] Создание постоянного браузера: {params}...", flush=True)
-resp = requests.get(DAEMON_CONNECT_URL, params=params, timeout=60)
-resp.raise_for_status()
-UPSTREAM_WS_URL = resp.text.strip()
-print(f"[rayobrowse] Сессия готова, CDP WS: {UPSTREAM_WS_URL}", flush=True)
+try:
+    resp = requests.get(DAEMON_CONNECT_URL, params=params, timeout=60)
+    if resp.status_code != 200:
+        print(f"[rayobrowse] Ошибка /connect ({resp.status_code}): {resp.text}", flush=True)
+        if "extension" in params:
+            print("[rayobrowse] Повторная попытка /connect без расширений...", flush=True)
+            params.pop("extension")
+            resp = requests.get(DAEMON_CONNECT_URL, params=params, timeout=60)
+    resp.raise_for_status()
+    UPSTREAM_WS_URL = resp.text.strip()
+    print(f"[rayobrowse] Сессия готова, CDP WS: {UPSTREAM_WS_URL}", flush=True)
+except Exception as e:
+    print(f"[rayobrowse] FATAL: Сбой при создании браузера: {e}", flush=True)
+    daemon_proc.terminate()
+    sys.exit(1)
 
 
 # 4. Прозрачный мост CDP на 0.0.0.0:9222
@@ -94,7 +112,7 @@ async def handle_http_proxy(request: web.Request) -> web.Response:
 async def handle_all_requests(request: web.Request):
     path = request.path.rstrip("/")
 
-    # 1. Ответ на GET /json/version со ссылкой на активный WebSocket сессии для Playwright
+    # 1. Ответ на GET /json/version для подключения Playwright
     if request.method == "GET" and (path == "/json/version" or path == "/json"):
         host = request.headers.get("Host", f"localhost:{EXTERNAL_PORT}")
         ws_path = "/" + UPSTREAM_WS_URL.split("://", 1)[-1].split("/", 1)[-1]
