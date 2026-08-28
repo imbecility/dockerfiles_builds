@@ -19,10 +19,10 @@ RUN apt-get update >/dev/null && apt-get install -y --no-install-recommends \
     /app/chrome-extensions.sh && rm /app/chrome-extensions.sh && \
     rm -rf /var/lib/apt/lists/*
 
-# Копируем /opt из upstream во временную директорию
+# /opt из upstream во временную директорию
 COPY --from=fortress_upstream /opt /tmp/upstream_opt
 
-# Динамически находим директорию с бинарником chrome и переносим всё в /opt/tilion/
+# динамический поиск папки с бинарником chrome и перенос всего в /opt/tilion/
 RUN rm -rf /opt/tilion && \
     mkdir -p /opt/tilion && \
     SRC_DIR=$(find /tmp/upstream_opt -type f -name "chrome" -exec dirname {} \; | head -n 1) && \
@@ -38,8 +38,6 @@ RUN rm -rf /opt/tilion && \
 COPY --chmod=755 <<-"EOF" /app/start.sh
 #!/bin/bash
 set -e
-
-# 1. Нативный запуск DNS от root
 bash /app/start_dns.sh
 touch /.dockerenv
 
@@ -54,8 +52,8 @@ if [ -d "/app/extensions" ]; then
   fi
 fi
 
-# 2. Запуск Fortress от пользователя tilion
-echo "[fortress] Запуск Chromium процесса..."
+# запуск Fortress от пользователя tilion
+echo "[fortress] запуск Chromium процесса..."
 gosu tilion /opt/tilion/tilion \
     --headless=new \
     --no-sandbox \
@@ -67,7 +65,7 @@ gosu tilion /opt/tilion/tilion \
 CHROME_PID=$!
 trap 'kill "$CHROME_PID" 2>/dev/null || true' TERM INT
 
-echo "[fortress] Ожидание открытия внутреннего порта $INTERNAL..."
+echo "[fortress] ожидание открытия внутреннего порта $INTERNAL..."
 READY=0
 for i in $(seq 1 40); do
     if ! kill -0 $CHROME_PID 2>/dev/null; then
@@ -78,14 +76,14 @@ for i in $(seq 1 40); do
     if (exec 3<>"/dev/tcp/127.0.0.1/$INTERNAL") 2>/dev/null; then
         exec 3>&-
         READY=1
-        echo "[fortress] Внутренний порт $INTERNAL готов (попытка $i)"
+        echo "[fortress] внутренний порт $INTERNAL готов (попытка $i)"
         break
     fi
     sleep 0.5
 done
 
 if [ "$READY" -ne 1 ]; then
-    echo "[fortress] ERROR: Таймаут ожидания порта $INTERNAL! Лог Chromium:" >&2
+    echo "[fortress] ERROR: таймаут ожидания порта $INTERNAL! Лог Chromium:" >&2
     cat /tmp/fortress.log >&2
     exit 1
 fi

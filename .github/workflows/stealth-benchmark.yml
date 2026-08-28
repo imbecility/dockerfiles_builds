@@ -33,7 +33,8 @@ jobs:
             {"name":"Camoufox","transport":"ws","port":7861,"url":"ws://localhost:7861/camoufox","flags":"--shm-size=1g"},
             {"name":"ClearcoteBrowser","transport":"cdp","port":9222,"url":"http://localhost:9222","flags":"--shm-size=1g"},
             {"name":"CloakBrowser","transport":"cdp","port":7860,"url":"http://localhost:7860","flags":"--shm-size=1g"},
-            {"name":"FortressBrowser","transport":"cdp","port":9222,"url":"http://localhost:9222","flags":"--shm-size=1g"}
+            {"name":"FortressBrowser","transport":"cdp","port":9222,"url":"http://localhost:9222","flags":"--shm-size=1g"},
+            {"name":"RayobrowseBrowser","transport":"cdp","port":9222,"url":"http://localhost:9222","flags":"--shm-size=2g"}
           ]'
           if [ -z "$INPUT_SERVICE" ] || [ "$INPUT_SERVICE" = "all" ]; then
             echo "matrix=$(echo "$ALL" | tr -d '\n' | tr -s ' ')" >> $GITHUB_OUTPUT

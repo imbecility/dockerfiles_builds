@@ -9,7 +9,7 @@ on:
   workflow_dispatch:
     inputs:
       service:
-        description: 'сервис для сборки (all / Base / Camoufox / ClearcoteBrowser / CloakBrowser / FortressBrowser)'
+        description: 'сервис для сборки (all / Base / Camoufox / ClearcoteBrowser / CloakBrowser / FortressBrowser / RayobrowseBrowser)'
         required: false
         default: 'all'
 
