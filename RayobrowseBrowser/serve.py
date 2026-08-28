@@ -15,11 +15,14 @@ EXTERNAL_PORT = int(os.environ.get("PORT", "9222"))
 DAEMON_CONNECT_URL = f"http://127.0.0.1:{INTERNAL_PORT}/connect"
 DAEMON_HEALTH_URL = f"http://127.0.0.1:{INTERNAL_PORT}/health"
 
-# 1. Запуск официального демона от пользователя browser
+# 1. Запуск официального демона на изолированном порту 9223
 env = os.environ.copy()
 env["STEALTH_BROWSER_ACCEPT_TERMS"] = "true"
 env["STEALTH_BROWSER_NOVNC"] = "false"
 env["DISPLAY"] = ":99"
+env["PORT"] = str(INTERNAL_PORT)
+env["RAYOBROWSE_PORT"] = str(INTERNAL_PORT)
+env["RAYOBYTE_ENDPOINT"] = f"http://127.0.0.1:{INTERNAL_PORT}"
 
 cmd = [
     "gosu", "browser",
@@ -31,11 +34,11 @@ daemon_proc = subprocess.Popen(cmd, env=env)
 
 # 2. Ожидание запуска демона
 print(f"[rayobrowse] Ожидание готовности демона на 127.0.0.1:{INTERNAL_PORT}...", flush=True)
-for _ in range(60):
+for _ in range(80):
     try:
         r = requests.get(DAEMON_HEALTH_URL, timeout=1)
         if r.status_code == 200 and r.json().get("success"):
-            print("[rayobrowse] Демон успешно запущен.", flush=True)
+            print(f"[rayobrowse] Демон успешно запущен на порту {INTERNAL_PORT}.", flush=True)
             break
     except Exception:
         pass
@@ -59,12 +62,13 @@ UPSTREAM_WS_URL = resp.text.strip()
 print(f"[rayobrowse] Сессия готова, CDP WS: {UPSTREAM_WS_URL}", flush=True)
 
 
-# 4. Прозрачный мост CDP
+# 4. Прозрачный мост CDP на 0.0.0.0:9222
 async def handle_ws_proxy(request: web.Request) -> web.WebSocketResponse:
     client_ws = web.WebSocketResponse(autoping=True, max_msg_size=0)
     await client_ws.prepare(request)
     async with aiohttp.ClientSession() as session:
-        async with session.ws_connect(UPSTREAM_WS_URL, max_msg_size=0) as upstream_ws:
+        target_ws = UPSTREAM_WS_URL if "cdp" in request.path or "devtools" in request.path else f"ws://127.0.0.1:{INTERNAL_PORT}{request.path_qs}"
+        async with session.ws_connect(target_ws, max_msg_size=0) as upstream_ws:
             async def fwd(src, dst):
                 async for msg in src:
                     if msg.type == aiohttp.WSMsgType.TEXT:
@@ -80,17 +84,17 @@ async def handle_ws_proxy(request: web.Request) -> web.WebSocketResponse:
 
 
 async def handle_http_proxy(request: web.Request) -> web.Response:
+    target_url = f"http://127.0.0.1:{INTERNAL_PORT}{request.path_qs}"
     async with aiohttp.ClientSession() as session:
         body = await request.read()
-        async with session.request(request.method, f"http://127.0.0.1:{INTERNAL_PORT}{request.path_qs}", headers=request.headers, data=body) as r:
+        async with session.request(request.method, target_url, headers=request.headers, data=body) as r:
             return web.Response(body=await r.read(), status=r.status, headers=r.headers)
 
 
-# Единый централизованный диспетчер маршрутов
 async def handle_all_requests(request: web.Request):
     path = request.path.rstrip("/")
 
-    # 1. Отвечаем на GET /json/version со ссылкой на активный WebSocket сессии
+    # 1. Ответ на GET /json/version со ссылкой на активный WebSocket сессии для Playwright
     if request.method == "GET" and (path == "/json/version" or path == "/json"):
         host = request.headers.get("Host", f"localhost:{EXTERNAL_PORT}")
         ws_path = "/" + UPSTREAM_WS_URL.split("://", 1)[-1].split("/", 1)[-1]
@@ -103,11 +107,11 @@ async def handle_all_requests(request: web.Request):
             "webSocketDebuggerUrl": f"ws://{host}{ws_path}"
         })
 
-    # 2. Перехватываем WebSocket подключения от Playwright/CDP клиентов
+    # 2. WebSocket перехватчик
     if request.headers.get("Upgrade", "").lower() == "websocket":
         return await handle_ws_proxy(request)
 
-    # 3. Все прочие HTTP запросы проксируем во внутренний демон
+    # 3. HTTP проксирование прочих запросов (health, connect и т.д.)
     return await handle_http_proxy(request)
 
 
@@ -120,7 +124,7 @@ async def main():
     await runner.setup()
     site = web.TCPSite(runner, "0.0.0.0", EXTERNAL_PORT)
     await site.start()
-    print(f"[rayobrowse] CDP Сервер готов на 0.0.0.0:{EXTERNAL_PORT}", flush=True)
+    print(f"[rayobrowse] CDP Мост слушает на 0.0.0.0:{EXTERNAL_PORT}", flush=True)
 
     stop_event = asyncio.Event()
     for sig in (signal.SIGINT, signal.SIGTERM):

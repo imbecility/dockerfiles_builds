@@ -2,7 +2,7 @@
 ARG BASE_IMAGE=base:latest
 ARG RAYOBROWSE_IMAGE=rayobyte/rayobrowse:latest
 
-# 1. Собираем ВСЕ .so библиотеки для dnsmasq через ldd и скачиваем расширения
+# 1. Скачиваем расширения и собираем ВСЕ библиотеки для dnsmasq
 FROM ${BASE_IMAGE} AS base_tools
 
 RUN mkdir -p /app/extensions /tmp/dnsmasq_libs && \
@@ -72,6 +72,7 @@ exec python3 /app/serve.py
 EOF
 
 ENTRYPOINT []
+ENV PORT=9222
 EXPOSE 9222
 VOLUME ["/data"]
 CMD ["/bin/bash", "/app/start.sh"]
