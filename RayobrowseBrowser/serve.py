@@ -23,7 +23,6 @@ HEADLESS = os.getenv("RAYOBROWSE_HEADLESS", "false")
 current_browser_ws: str | None = None
 browser_lock = asyncio.Lock()
 daemon_ready_event = asyncio.Event()
-browser_ready_event = asyncio.Event()
 
 
 def get_extensions_arg() -> str:
@@ -40,15 +39,7 @@ async def ensure_active_browser() -> str:
 
     async with browser_lock:
         if current_browser_ws:
-            try:
-                async with aiohttp.ClientSession() as session:
-                    async with session.ws_connect(current_browser_ws, timeout=2.0) as ws:
-                        await ws.close()
-                        return current_browser_ws
-            except Exception:
-                logger.warning("Сессия браузера недоступна, создаем новую...")
-                current_browser_ws = None
-                browser_ready_event.clear()
+            return current_browser_ws
 
         logger.info(f"Запрос новой stealth-сессии из Rayobrowse Daemon (порт {INTERNAL_PORT})...")
         params = {
@@ -77,20 +68,7 @@ async def ensure_active_browser() -> str:
                 else:
                     current_browser_ws = text
 
-                # Проверка реальной доступности CDP-сокета Chromium перед подтверждением готовности
-                for _ in range(15):
-                    try:
-                        async with aiohttp.ClientSession() as check_session:
-                            async with check_session.ws_connect(current_browser_ws, timeout=1.0) as ws:
-                                await ws.close()
-                                logger.info(f"🎉 Stealth-браузер успешно готов и верифицирован: {current_browser_ws}")
-                                browser_ready_event.set()
-                                return current_browser_ws
-                    except Exception:
-                        await asyncio.sleep(0.5)
-
-                logger.info(f"🎉 Stealth-браузер готов: {current_browser_ws}")
-                browser_ready_event.set()
+                logger.info(f"🎉 Stealth-браузер успешно готов: {current_browser_ws}")
                 return current_browser_ws
 
 
@@ -98,7 +76,7 @@ async def ensure_active_browser() -> str:
 
 async def handle_version(request: web.Request) -> web.Response:
     try:
-        await asyncio.wait_for(ensure_active_browser(), timeout=45.0)
+        await asyncio.wait_for(ensure_active_browser(), timeout=60.0)
     except Exception as e:
         logger.error(f"Ошибка ожидания браузера в handle_version: {e}")
         return web.json_response({"error": str(e)}, status=503)
@@ -142,6 +120,7 @@ async def handle_health(request: web.Request) -> web.Response:
 # --- WebSocket Proxy ---
 
 async def handle_cdp_ws(request: web.Request) -> web.WebSocketResponse:
+    global current_browser_ws
     client_ws = web.WebSocketResponse(max_msg_size=0, timeout=None, autoping=True)
     await client_ws.prepare(request)
 
@@ -150,26 +129,38 @@ async def handle_cdp_ws(request: web.Request) -> web.WebSocketResponse:
 
     async with aiohttp.ClientSession() as session:
         async with session.ws_connect(target_ws_url, max_msg_size=0, timeout=None, autoping=True) as server_ws:
-            async def forward(src, dst):
+            async def forward_client():
                 try:
-                    async for msg in src:
+                    async for msg in client_ws:
                         if msg.type == aiohttp.WSMsgType.TEXT:
-                            await dst.send_str(msg.data)
+                            await server_ws.send_str(msg.data)
                         elif msg.type == aiohttp.WSMsgType.BINARY:
-                            await dst.send_bytes(msg.data)
+                            await server_ws.send_bytes(msg.data)
                         elif msg.type in (aiohttp.WSMsgType.CLOSE, aiohttp.WSMsgType.CLOSING, aiohttp.WSMsgType.CLOSED):
-                            break
-                        elif msg.type == aiohttp.WSMsgType.ERROR:
                             break
                 except Exception:
                     pass
 
-            t1 = asyncio.create_task(forward(client_ws, server_ws))
-            t2 = asyncio.create_task(forward(server_ws, client_ws))
+            async def forward_server():
+                try:
+                    async for msg in server_ws:
+                        if msg.type == aiohttp.WSMsgType.TEXT:
+                            await client_ws.send_str(msg.data)
+                        elif msg.type == aiohttp.WSMsgType.BINARY:
+                            await client_ws.send_bytes(msg.data)
+                        elif msg.type in (aiohttp.WSMsgType.CLOSE, aiohttp.WSMsgType.CLOSING, aiohttp.WSMsgType.CLOSED):
+                            break
+                except Exception:
+                    pass
+
+            t1 = asyncio.create_task(forward_client())
+            t2 = asyncio.create_task(forward_server())
             done, pending = await asyncio.wait([t1, t2], return_when=asyncio.FIRST_COMPLETED)
             for p in pending:
                 p.cancel()
 
+    logger.info("CDP сессия клиента завершена.")
+    current_browser_ws = None
     return client_ws
 
 
@@ -227,7 +218,7 @@ async def main():
 
     await wait_for_daemon()
 
-    # 3. Прогрев первой сессии
+    # 3. Фоновый прогрев браузера
     asyncio.create_task(ensure_active_browser())
 
     try:

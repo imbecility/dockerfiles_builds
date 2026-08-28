@@ -32,8 +32,8 @@ COPY --from=rayobrowse_upstream /usr/local /usr/local
 COPY --from=rayobrowse_upstream /opt/stealth-browser /opt/stealth-browser
 COPY --from=rayobrowse_upstream /app/rayobyte_python /app/rayobyte_python
 
-# 1. Распаковка Playwright и гарантированное размещение chromiumSwitches.js
-RUN python3 -c "from playwright._impl._driver import compute_driver_executable; compute_driver_executable()" 2>/dev/null || true && \
+# 1. Распаковка Playwright driver для гарантированного создания chromiumSwitches.js
+RUN python3 -c "from playwright.sync_api import sync_playwright; p = sync_playwright().start(); p.stop()" 2>/dev/null || true && \
     SWITCHES=$(find /usr/local -name "chromiumSwitches.js" 2>/dev/null | head -n 1) && \
     if [ -n "$SWITCHES" ]; then \
         mkdir -p /usr/local/lib/python3.12/site-packages/playwright/driver/package/lib/server/chromium && \
