@@ -62,7 +62,6 @@ def init_display_and_wm() -> None:
     logger.info("Запуск менеджера окон Openbox...")
     subprocess.Popen(["openbox"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
 
-    # Ожидание готовности Window Manager
     for _ in range(30):
         try:
             out = subprocess.check_output(["xprop", "-root", "_NET_SUPPORTING_WM_CHECK"], stderr=subprocess.DEVNULL).decode()
@@ -128,10 +127,14 @@ async def ensure_active_browser() -> str:
                 return current_browser_ws
 
 
+# --- HTTP Handlers ---
+
 async def handle_version(request: web.Request) -> web.Response:
-    # Запускаем прогрев браузера, если еще не готов
-    if not browser_ready_event.is_set():
-        asyncio.create_task(ensure_active_browser())
+    try:
+        await ensure_active_browser()
+    except Exception as e:
+        logger.error(f"Ошибка ожидания браузера в handle_version: {e}")
+        return web.json_response({"error": str(e)}, status=500)
 
     host = request.host
     return web.json_response({
@@ -167,43 +170,43 @@ async def handle_health(request: web.Request) -> web.Response:
         return web.json_response({"success": False, "error": str(e)}, status=503)
 
 
+# --- WebSocket Proxy ---
+
 async def handle_cdp_ws(request: web.Request) -> web.WebSocketResponse:
-    client_ws = web.WebSocketResponse(max_msg_size=0, timeout=None)
+    client_ws = web.WebSocketResponse(max_msg_size=0, timeout=None, autoping=True)
     await client_ws.prepare(request)
 
     target_ws_url = await ensure_active_browser()
     logger.info(f"CDP клиент подключен, проксирование на {target_ws_url}")
 
     async with aiohttp.ClientSession() as session:
-        async with session.ws_connect(target_ws_url, max_msg_size=0, timeout=None) as server_ws:
-            async def forward_client_to_server():
-                async for msg in client_ws:
-                    if msg.type == aiohttp.WSMsgType.TEXT:
-                        await server_ws.send_str(msg.data)
-                    elif msg.type == aiohttp.WSMsgType.BINARY:
-                        await server_ws.send_bytes(msg.data)
-                    elif msg.type == aiohttp.WSMsgType.ERROR:
-                        break
+        async with session.ws_connect(target_ws_url, max_msg_size=0, timeout=None, autoping=True) as server_ws:
+            async def forward(src, dst):
+                try:
+                    async for msg in src:
+                        if msg.type == aiohttp.WSMsgType.TEXT:
+                            await dst.send_str(msg.data)
+                        elif msg.type == aiohttp.WSMsgType.BINARY:
+                            await dst.send_bytes(msg.data)
+                        elif msg.type in (aiohttp.WSMsgType.CLOSE, aiohttp.WSMsgType.CLOSING, aiohttp.WSMsgType.CLOSED):
+                            break
+                        elif msg.type == aiohttp.WSMsgType.ERROR:
+                            break
+                except Exception:
+                    pass
 
-            async def forward_server_to_client():
-                async for msg in server_ws:
-                    if msg.type == aiohttp.WSMsgType.TEXT:
-                        await client_ws.send_str(msg.data)
-                    elif msg.type == aiohttp.WSMsgType.BINARY:
-                        await client_ws.send_bytes(msg.data)
-                    elif msg.type == aiohttp.WSMsgType.ERROR:
-                        break
-
-            t1 = asyncio.create_task(forward_client_to_server())
-            t2 = asyncio.create_task(forward_server_to_client())
-            await asyncio.wait([t1, t2], return_when=asyncio.FIRST_COMPLETED)
+            t1 = asyncio.create_task(forward(client_ws, server_ws))
+            t2 = asyncio.create_task(forward(server_ws, client_ws))
+            done, pending = await asyncio.wait([t1, t2], return_when=asyncio.FIRST_COMPLETED)
+            for p in pending:
+                p.cancel()
 
     return client_ws
 
 
 async def wait_for_daemon():
     logger.info(f"Ожидание старта Rayobrowse Daemon на порту {INTERNAL_PORT}...")
-    for i in range(60):
+    for _ in range(60):
         try:
             async with aiohttp.ClientSession() as session:
                 async with session.get(f"http://127.0.0.1:{INTERNAL_PORT}/health", timeout=1.0) as resp:
@@ -219,15 +222,24 @@ async def wait_for_daemon():
 async def main():
     init_display_and_wm()
 
-    # 1. Мгновенно запускаем HTTP/CDP сервер на 9222
+    # 1. Запуск HTTP/CDP сервера на 9222 с поддержкой замыкающих слэшей
     app = web.Application()
-    app.router.add_get("/json/version", handle_version)
-    app.router.add_get("/json", handle_json_list)
-    app.router.add_get("/json/list", handle_json_list)
-    app.router.add_get("/health", handle_health)
+
+    # Роуты версий и целей (как с '/' так и без)
+    for route in ["/json/version", "/json/version/"]:
+        app.router.add_get(route, handle_version)
+    for route in ["/json", "/json/", "/json/list", "/json/list/"]:
+        app.router.add_get(route, handle_json_list)
+    for route in ["/health", "/health/"]:
+        app.router.add_get(route, handle_health)
+    for route in ["/json/protocol", "/json/protocol/"]:
+        app.router.add_get(route, handle_version)
+
+    # CDP WebSocket маршруты
     app.router.add_get("/devtools/browser/{tail:.*}", handle_cdp_ws)
     app.router.add_get("/devtools/page/{tail:.*}", handle_cdp_ws)
     app.router.add_get("/cdp/{tail:.*}", handle_cdp_ws)
+    app.router.add_get("/ws/{tail:.*}", handle_cdp_ws)
     app.router.add_get("/", handle_cdp_ws)
 
     runner = web.AppRunner(app)
