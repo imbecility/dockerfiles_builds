@@ -111,7 +111,8 @@ for i in $(seq 1 30); do
     sleep 0.1
 done
 
-echo "[rayobrowse] Дисплей :99 и Openbox успешно инициализированы."
+sleep 2
+echo "[rayobrowse] Дисплей :99 и Openbox полностью готовы к приему клиентов."
 
 # 4. Запуск serve.py
 exec gosu browser /usr/local/bin/python3 /app/serve.py

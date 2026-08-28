@@ -112,7 +112,8 @@ jobs:
             --transport "${{ matrix.transport }}" \
             --url "${{ matrix.url }}" \
             --container-id "$CONTAINER_ID" \
-            --out-dir "benchmark_results/${{ matrix.name }}"
+            --out-dir "benchmark_results/${{ matrix.name }}" \
+            --connect-timeout 90
 
       - name: Collect container logs
         if: always()
