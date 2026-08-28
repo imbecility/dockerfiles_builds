@@ -35,7 +35,6 @@ def get_extensions_arg() -> str:
 
 
 async def create_browser_session() -> str:
-    """Создает ровно одну сессию браузера в Rayobrowse daemon без параллельных дублей."""
     global current_browser_ws
     async with init_lock:
         if current_browser_ws:
@@ -57,7 +56,6 @@ async def create_browser_session() -> str:
 
         for attempt in range(1, 4):
             try:
-                # Таймаут 120с на полный запуск Chromium и всех оверлеев
                 async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=120)) as session:
                     url = f"http://127.0.0.1:{INTERNAL_PORT}/connect"
                     async with session.get(url, params=params) as resp:
@@ -86,7 +84,6 @@ async def create_browser_session() -> str:
 
 
 async def background_browser_starter():
-    """Фоновая задача, запускающая браузер при старте демона."""
     try:
         await create_browser_session()
     except Exception as e:
@@ -96,7 +93,6 @@ async def background_browser_starter():
 # --- HTTP Handlers ---
 
 async def handle_version(request: web.Request) -> web.Response:
-    # Мгновенный ответ: никакого блокирующего ожидания или отмены запросов к демону!
     if not browser_ready_event.is_set():
         return web.json_response({"status": "starting", "message": "Browser is warming up"}, status=503)
 
@@ -143,7 +139,6 @@ async def handle_cdp_ws(request: web.Request) -> web.WebSocketResponse:
     client_ws = web.WebSocketResponse(max_msg_size=0, timeout=None, autoping=True)
     await client_ws.prepare(request)
 
-    # Дожидаемся готовности браузера, если клиент подключился до окончания прогрева
     await browser_ready_event.wait()
     target_ws_url = current_browser_ws
     logger.info(f"CDP клиент подключен, проксирование на {target_ws_url}")
@@ -201,7 +196,6 @@ async def wait_for_daemon():
 
 
 async def main():
-    # 1. Запуск внешнего HTTP/CDP сервера
     app = web.Application()
     for route in ["/json/version", "/json/version/"]:
         app.router.add_get(route, handle_version)
@@ -224,7 +218,6 @@ async def main():
     await site.start()
     logger.info(f"✨ CDP сервер открыт и слушает: http://0.0.0.0:{EXTERNAL_PORT}")
 
-    # 2. Запуск демона Rayobrowse через Python 3.12
     env = dict(os.environ)
     env["STEALTH_BROWSER_ACCEPT_TERMS"] = "true"
     env["PYTHONPATH"] = "/app/rayobyte_python/src"
@@ -238,7 +231,6 @@ async def main():
 
     await wait_for_daemon()
 
-    # 3. Единственный фоновый запуск браузера
     await asyncio.sleep(1.0)
     asyncio.create_task(background_browser_starter())
 
