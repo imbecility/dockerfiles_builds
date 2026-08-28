@@ -20,10 +20,11 @@ RUN apt-get update >/dev/null && apt-get install -y --no-install-recommends \
     libnss3 libnspr4 libatk1.0-0 libatk-bridge2.0-0 libcups2 libdrm2 \
     libxkbcommon0 libxcomposite1 libxdamage1 libxfixes3 libxrandr2 libgbm1 \
     libpango-1.0-0 libcairo2 libasound2 libxshmfence1 libglib2.0-0 \
-    libgl1-mesa-dri libegl-mesa0 fonts-unifont fonts-wqy-zenhei \
+    libgl1-mesa-dri libegl-mesa0 fonts-unifont fonts-wqy-zenhei dbus \
     gosu unzip zstd tar procps ca-certificates >/dev/null && \
     useradd -m -u 1000 browser && \
-    mkdir -p /data/data /data/cache /data/logs /home/browser /app/extensions && \
+    mkdir -p /data/data /data/cache /data/logs /home/browser /app/extensions /var/run/dbus && \
+    dbus-uuidgen > /etc/machine-id 2>/dev/null || true && \
     /app/chrome-extensions.sh && rm /app/chrome-extensions.sh && \
     rm -rf /var/lib/apt/lists/*
 
@@ -31,16 +32,19 @@ COPY --from=rayobrowse_upstream /usr/local /usr/local
 COPY --from=rayobrowse_upstream /opt/stealth-browser /opt/stealth-browser
 COPY --from=rayobrowse_upstream /app/rayobyte_python /app/rayobyte_python
 
-# Симлинк домашней директории на запеченные бинарники
+# 1. Распаковка внутреннего драйвера Playwright для генерации chromiumSwitches.js
+RUN python3 -c "from playwright._impl._driver import compute_driver_executable; compute_driver_executable()" 2>/dev/null || true
+
+# 2. Симлинк домашней директории на запеченные бинарники
 RUN rm -rf /home/browser/.stealth-browser && \
     ln -sfn /opt/stealth-browser /home/browser/.stealth-browser && \
     chown -R browser:browser /home/browser /opt/stealth-browser /app /data
 
-# Предзагрузка GeoIP и шрифтов в слой образа во время сборки
+# 3. Предзагрузка GeoIP и шрифтов в слой образа во время сборки
 RUN gosu browser python3 -c "from rayobrowse.updater.auto_update import ensure_geolite2_db; ensure_geolite2_db()" 2>/dev/null || true
 RUN gosu browser python3 -c "from rayobrowse.updater.assets import ensure_asset; ensure_asset('fonts')" 2>/dev/null || true
 
-# Установка прав root:root + setuid (4755) для sandbox
+# 4. Установка прав root:root + setuid (4755) для sandbox
 RUN chmod -R 755 /opt/stealth-browser && \
     for sb in $(find /opt/stealth-browser -type f -name "*sandbox*"); do \
         chown root:root "$sb" && chmod 4755 "$sb"; \
@@ -58,7 +62,9 @@ set -e
 bash /app/start_dns.sh
 touch /.dockerenv
 
-# 2. Фиксация прав на sandbox перед сбросом привилегий
+# 2. Инициализация /tmp/.X11-unix и прав sandbox
+mkdir -p /tmp/.X11-unix /var/run/dbus
+chmod 1777 /tmp /tmp/.X11-unix
 for sb in $(find /opt/stealth-browser -type f -name "*sandbox*" 2>/dev/null); do
     chown root:root "$sb" 2>/dev/null || true
     chmod 4755 "$sb" 2>/dev/null || true

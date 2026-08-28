@@ -46,7 +46,7 @@ async def ensure_active_browser() -> str:
                         await ws.close()
                         return current_browser_ws
             except Exception:
-                logger.warning("Сессия браузера закрылась, создаем новую...")
+                logger.warning("Сессия браузера недоступна, создаем новую...")
                 current_browser_ws = None
                 browser_ready_event.clear()
 
@@ -77,7 +77,19 @@ async def ensure_active_browser() -> str:
                 else:
                     current_browser_ws = text
 
-                logger.info(f"🎉 Stealth-браузер успешно готов: {current_browser_ws}")
+                # Проверка реальной доступности CDP-сокета Chromium перед подтверждением готовности
+                for _ in range(15):
+                    try:
+                        async with aiohttp.ClientSession() as check_session:
+                            async with check_session.ws_connect(current_browser_ws, timeout=1.0) as ws:
+                                await ws.close()
+                                logger.info(f"🎉 Stealth-браузер успешно готов и верифицирован: {current_browser_ws}")
+                                browser_ready_event.set()
+                                return current_browser_ws
+                    except Exception:
+                        await asyncio.sleep(0.5)
+
+                logger.info(f"🎉 Stealth-браузер готов: {current_browser_ws}")
                 browser_ready_event.set()
                 return current_browser_ws
 
@@ -201,7 +213,7 @@ async def main():
     await site.start()
     logger.info(f"✨ CDP сервер открыт и слушает: http://0.0.0.0:{EXTERNAL_PORT}")
 
-    # 2. Запуск демона с прямым выводом stdout/stderr в консоль
+    # 2. Запуск демона Rayobrowse
     env = dict(os.environ)
     env["STEALTH_BROWSER_ACCEPT_TERMS"] = "true"
     env["PYTHONPATH"] = "/app/rayobyte_python/src"
@@ -215,7 +227,7 @@ async def main():
 
     await wait_for_daemon()
 
-    # 3. Фоновый прогрев первой сессии
+    # 3. Прогрев первой сессии
     asyncio.create_task(ensure_active_browser())
 
     try:
