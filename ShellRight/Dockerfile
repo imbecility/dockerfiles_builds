@@ -1,3 +1,5 @@
+ARG BASE_IMAGE=base:latest
+
 # Stage 1: Сборка Go CDP-прокси
 FROM golang:bookworm AS go-builder
 WORKDIR /app
@@ -19,7 +21,6 @@ RUN curl -fsSL https://googlechromelabs.github.io/chrome-for-testing/last-known-
     chmod +x /opt/headless-shell/chrome-headless-shell
 
 # Stage 3: Финальный образ на основе общего Base
-ARG BASE_IMAGE=base:latest
 FROM ${BASE_IMAGE}
 
 RUN apt-get update >/dev/null && apt-get install -y --no-install-recommends \
