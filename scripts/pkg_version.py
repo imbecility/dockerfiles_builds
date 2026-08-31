@@ -1,34 +1,40 @@
-"""
-Универсальный скрипт извлечения версии установленного пакета или модуля.
-
-Запускается внутри контейнера через передачу в stdin:
-    docker run -i --rm <image> python - <package_name> < scripts/pkg_version.py
-"""
+import re
+import subprocess
 from importlib import import_module
 from importlib.metadata import version as pkg_version
-from sys import argv, stderr, exit
+from pathlib import Path
+from sys import argv, exit, stderr
 
 
-def extract_version(pkg_name: str) -> str | None:
-    pkg_name = pkg_name.strip()
-    if not pkg_name:
+def extract_version(target: str) -> str | None:
+    target = target.strip()
+    if not target:
         return None
 
-    # Варианты написания имени (например: my-pkg vs my_pkg)
+    # Способ 1: Если передан путь к бинарнику или бинарник есть в PATH
+    if "/" in target or Path(target).exists():
+        try:
+            out = subprocess.check_output([target, "--version"], text=True, stderr=subprocess.STDOUT)
+            match = re.search(r"\d+\.\d+\.\d+\.\d+", out)
+            if match:
+                return match.group(0)
+        except Exception:
+            pass
+
+    # Способ 2: Стандартные метаданные pip/wheel (dist-info)
     candidates = list(dict.fromkeys([
-        pkg_name,
-        pkg_name.replace("_", "-"),
-        pkg_name.replace("-", "_")
+        target,
+        target.replace("_", "-"),
+        target.replace("-", "_")
     ]))
 
-    # Способ 1: Стандартные метаданные pip/wheel (dist-info)
     for name in candidates:
         try:
             return pkg_version(name)
         except Exception:
             pass
 
-    # Способ 2: Импорт модуля и чтение атрибутов версий
+    # Способ 3: Импорт модуля и чтение атрибутов версий (__version__)
     for name in candidates:
         try:
             mod = import_module(name)
@@ -51,12 +57,10 @@ def extract_version(pkg_name: str) -> str | None:
 
 def main() -> None:
     if len(argv) < 2:
-        print("❌ не передан аргумент с именем пакета.", file=stderr)
+        print("❌ не передан аргумент с именем пакета или путем к бинарнику.", file=stderr)
         exit(1)
 
-    pkg_name = argv[1]
-    version = extract_version(pkg_name)
-
+    version = extract_version(argv[1])
     if version:
         print(version)
         exit(0)

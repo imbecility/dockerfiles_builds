@@ -9,7 +9,7 @@ on:
   workflow_dispatch:
     inputs:
       service:
-        description: 'сервис для сборки (all / Base / Camoufox / ClearcoteBrowser / CloakBrowser / FortressBrowser / RayobrowseBrowser)'
+        description: 'сервис для сборки (all / Base / Camoufox / ClearcoteBrowser / CloakBrowser / FortressBrowser / RayobrowseBrowser / ShellRight)'
         required: false
         default: 'all'
 
@@ -297,30 +297,34 @@ jobs:
 
       - name: Extract Internal Browser Version & Push Tags
         run: |
-          # извлечение версии библиотеки из готового сжатого контейнера
-          PKG_NAME=""
+          TARGET_IDENTIFIER=""
           PKG_FILE="./${{ matrix.service }}/pypi_package.txt"
+          CHANNEL_FILE="./${{ matrix.service }}/chrome_channel.txt"
+          
           if [ -f "$PKG_FILE" ]; then
-            PKG_NAME=$(xargs < "$PKG_FILE")
+            TARGET_IDENTIFIER=$(xargs < "$PKG_FILE")
+          elif [ -f "$CHANNEL_FILE" ]; then
+            # Путь к бинарнику в образе
+            TARGET_IDENTIFIER="/opt/headless-shell/chrome-headless-shell"
           fi
           
           INSTALLED_VER=""
-          if [ -n "$PKG_NAME" ]; then
-            echo "ℹ️ извлечение версии '$PKG_NAME' из fat-образа (${{ steps.names.outputs.service_lower }}:orig)..."
-            INSTALLED_VER=$(docker run -i --rm "${{ steps.names.outputs.service_lower }}:orig" python - "$PKG_NAME" < scripts/pkg_version.py 2>/dev/null | tr -d '\r\n' || true)
+          if [ -n "$TARGET_IDENTIFIER" ]; then
+            echo "ℹ️ извлечение версии '$TARGET_IDENTIFIER' из fat-образа (${{ steps.names.outputs.service_lower }}:orig)..."
+            INSTALLED_VER=$(docker run -i --rm "${{ steps.names.outputs.service_lower }}:orig" python - "$TARGET_IDENTIFIER" < scripts/pkg_version.py 2>/dev/null | tr -d '\r\n' || true)
           fi
-
-          echo "ℹ️ полученная версия пакета: '$INSTALLED_VER'"
+          
+          echo "ℹ️ полученная версия: '$INSTALLED_VER'"
           IMAGE_BASE=$(echo "${{ env.REGISTRY }}/${{ github.repository }}/${{ steps.names.outputs.service_lower }}" | tr '[:upper:]' '[:lower:]')
-
-          # в :latest
+          
+          # Пуш :latest
           docker push ${{ steps.names.outputs.tag_latest }}
-
-          # в версионный тег
+          
+          # Пуш версионного тега (например: patchbrowser:133.0.6943.141)
           if [ -n "$INSTALLED_VER" ]; then
             echo "🏷️ присвоен версионный тег: $IMAGE_BASE:$INSTALLED_VER"
             docker tag ${{ steps.names.outputs.tag_latest }} "$IMAGE_BASE:$INSTALLED_VER"
             docker push "$IMAGE_BASE:$INSTALLED_VER"
           else
-            echo "⚠️ версия пакета не была определена, версионный тег не запушен."
+            echo "⚠️ версия не была определена, версионный тег не запушен."
           fi

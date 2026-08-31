@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
     inputs:
       service:
-        description: 'сервис для бенчмарка (all / Camoufox / ClearcoteBrowser / CloakBrowser / FortressBrowser)'
+        description: 'сервис для бенчмарка (all / Camoufox / ClearcoteBrowser / CloakBrowser / FortressBrowser / RayobrowseBrowser / ShellRight)'
         required: false
         default: 'all'
   schedule:
@@ -34,7 +34,8 @@ jobs:
             {"name":"ClearcoteBrowser","transport":"cdp","port":9222,"url":"http://localhost:9222","flags":"--shm-size=1g"},
             {"name":"CloakBrowser","transport":"cdp","port":7860,"url":"http://localhost:7860","flags":"--shm-size=1g"},
             {"name":"FortressBrowser","transport":"cdp","port":9222,"url":"http://localhost:9222","flags":"--shm-size=1g"},
-            {"name":"RayobrowseBrowser","transport":"cdp","port":9222,"url":"http://localhost:9222","flags":"--shm-size=2g"}
+            {"name":"RayobrowseBrowser","transport":"cdp","port":9222,"url":"http://localhost:9222","flags":"--shm-size=2g"},
+            {"name":"ShellRight","transport":"cdp","port":9222,"url":"http://localhost:9222","flags":"--shm-size=1g"}
           ]'
           if [ -z "$INPUT_SERVICE" ] || [ "$INPUT_SERVICE" = "all" ]; then
             echo "matrix=$(echo "$ALL" | tr -d '\n' | tr -s ' ')" >> $GITHUB_OUTPUT

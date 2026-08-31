@@ -32,6 +32,17 @@ def get_latest_pypi_version(package_name: str) -> str | None:
         print(f"Ошибка получения версии PyPI для {package_name}: {e}")
     return None
 
+def get_latest_chrome_major_version(channel: str = "Stable") -> str | None:
+    try:
+        url = "https://googlechromelabs.github.io/chrome-for-testing/last-known-good-versions-with-downloads.json"
+        r = httpx.get(url, timeout=15)
+        if r.status_code == 200:
+            full_version = r.json()["channels"][channel]["version"]
+            # 134.0.6998.35 -> "134"
+            return full_version.split(".")[0]
+    except Exception as e:
+        print(f"Ошибка получения версии Chrome ({channel}): {e}")
+    return None
 
 def ghcr_tag_exists(package_name: str, target_tag: str) -> bool:
     headers = {
@@ -94,16 +105,25 @@ def main() -> None:
     if event == "schedule":
         print("ℹ️ проверка новых релизов в апстрим PyPI...")
         for dir_name in browser_dirs:
+            latest_ver = None
             pypi_pkg = get_pypi_package_name(dir_name)
-            if not pypi_pkg:
+            chrome_channel_file = Path(dir_name) / "chrome_channel.txt"
+
+            if pypi_pkg:
+                latest_ver = get_latest_pypi_version(pypi_pkg)
+                pkg_desc = f"PyPI:{pypi_pkg}"
+            elif chrome_channel_file.exists():
+                channel = chrome_channel_file.read_text(encoding="utf-8").strip() or "Stable"
+                latest_ver = get_latest_chrome_major_version(channel)
+                pkg_desc = f"Chrome:{channel}"
+            else:
                 continue
 
-            latest_ver = get_latest_pypi_version(pypi_pkg)
             if not latest_ver:
-                print(f"❌ [{dir_name}] не удалось получить версию из PyPI.")
+                print(f"❌ [{dir_name}] не удалось получить версию для {pkg_desc}.")
                 continue
 
-            print(f"☑️ [{dir_name}] актуальная версия {pypi_pkg} на PyPI: {latest_ver}")
+            print(f"☑️ [{dir_name}] актуальная апстрим-версия ({pkg_desc}): {latest_ver}")
 
             image_name = dir_name.lower()
             if not ghcr_tag_exists(image_name, latest_ver):
