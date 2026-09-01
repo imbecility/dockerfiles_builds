@@ -109,6 +109,7 @@ jobs:
             --service "${{ matrix.name }}" \
             --transport "${{ matrix.transport }}" \
             --url "${{ matrix.url }}" \
+            --image "$IMAGE" \
             --container-id "$CONTAINER_ID" \
             --out-dir "benchmark_results/${{ matrix.name }}" \
             --connect-timeout 90

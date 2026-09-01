@@ -1,18 +1,3 @@
-"""Бенчмарк одного браузерного сервиса: скорость подключения, отклик навигации,
-результаты bot-detection сайтов, скриншоты — всё складывается в JSON + PNG.
-
-Использование (внутри CI, после того как контейнер сервиса поднят и порт проброшен):
-
-    python3 scripts/benchmark_browsers.py \
-        --service Camoufox \
-        --transport ws \
-        --url ws://localhost:7861/camoufox \
-        --container-id <docker_id_опционально> \
-        --out-dir benchmark_results/Camoufox
-
-Транспорт "ws" — playwright.firefox.connect (Camoufox).
-Транспорт "cdp" — playwright.chromium.connect_over_cdp (Clearcote, CloakBrowser).
-"""
 from __future__ import annotations
 
 import argparse
@@ -30,6 +15,38 @@ from playwright.sync_api import sync_playwright
 
 from shared.detection_parsers import ALL_PARSERS
 from shared.utils import wait_for_cdp_server, wait_for_ws_server
+
+
+def get_image_size(image_name: str | None) -> dict[str, str]:
+    """Измеряет размер образа: распакованный на диске и сжатый (gzip)."""
+    if not image_name:
+        return {}
+    try:
+        # 1. Размер на диске (распакованный)
+        raw_size = int(
+            subprocess.check_output(
+                ["docker", "image", "inspect", image_name, "--format", "{{.Size}}"],
+                timeout=10,
+            ).decode().strip()
+        )
+
+        # 2. Размер при передаче по сети (сжатый)
+        p1 = subprocess.Popen(["docker", "save", image_name], stdout=subprocess.PIPE)
+        p2 = subprocess.Popen(["gzip", "-1"], stdin=p1.stdout, stdout=subprocess.PIPE)
+        if p1.stdout:
+            p1.stdout.close()
+        compressed_bytes = len(p2.communicate()[0])
+
+        def fmt(b: int) -> str:
+            return f"{b / (1024 * 1024):.1f} MB" if b < 1024**3 else f"{b / (1024**3):.2f} GB"
+
+        return {
+            "uncompressed": fmt(raw_size),
+            "compressed": fmt(compressed_bytes),
+            "display": f"{fmt(compressed_bytes)} / {fmt(raw_size)}",
+        }
+    except Exception as e:  # noqa: BLE001
+        return {"display": "—", "error": repr(e)}
 
 
 def docker_stats(container_id: str | None) -> dict:
@@ -82,6 +99,7 @@ def main() -> None:
     ap.add_argument("--service", required=True)
     ap.add_argument("--transport", required=True, choices=["ws", "cdp"])
     ap.add_argument("--url", required=True)
+    ap.add_argument("--image", default=None, help="Имя Docker-образа для замера размера")
     ap.add_argument("--container-id", default=None)
     ap.add_argument("--out-dir", required=True)
     ap.add_argument("--connect-timeout", type=int, default=40)
@@ -93,6 +111,7 @@ def main() -> None:
     report = {
         "service": args.service,
         "transport": args.transport,
+        "image_size": get_image_size(args.image),
         "timestamp": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
         "connect_time_ms": None,
         "sites": [],
@@ -143,6 +162,7 @@ def main() -> None:
     report_path = out_dir / "report.json"
     report_path.write_text(json.dumps(report, indent=2, ensure_ascii=False), encoding="utf-8")
     print(f"\n📄 отчёт сохранён: {report_path}")
+    print(f"📦 размер образа: {report['image_size'].get('display', '—')}")
     print(f"✅ пройдено {passed}/{total} проверок, средняя навигация {report['summary']['avg_nav_ms']}ms")
 
 

@@ -1,11 +1,4 @@
-"""
-Собирает benchmark_results/<service>/report.json со всех сервисов
-и вставляет/обновляет markdown-таблицы в README.md между маркерами:
-
-    <!-- BENCHMARK_TABLE_START -->
-    ...
-    <!-- BENCHMARK_TABLE_END -->
-"""
+# ./scripts/update_readme.py
 from __future__ import annotations
 
 import json
@@ -18,7 +11,6 @@ README_PATH = ROOT_DIR / "README.md"
 START_MARKER = "<!-- BENCHMARK_TABLE_START -->"
 END_MARKER = "<!-- BENCHMARK_TABLE_END -->"
 
-# список сайтов: (нормализованный_ключ, отображаемое_имя)
 SITE_COLUMNS = [
     ("stealthprobe", "stealth-probe"),
     ("sannysoft", "Sannysoft"),
@@ -89,7 +81,7 @@ def build_markdown(reports: list[dict]) -> str:
         t1_lines.append("| " + " | ".join(row) + " |")
 
     # --- Таблица 2: Resources & Performance ---
-    h2 = ["Сервис", "Транспорт", "Connect (ms)", "Avg Nav (ms)", "RAM (Старт)", "RAM (Пик)", "CPU (Пик)"]
+    h2 = ["Сервис", "Образ (сжат / диск)", "Транспорт", "Connect (ms)", "Avg Nav (ms)", "RAM (Старт)", "RAM (Пик)", "CPU (Пик)"]
     t2_lines = [
         "",
         "### ⚡ Производительность и ресурсы",
@@ -103,6 +95,7 @@ def build_markdown(reports: list[dict]) -> str:
         stats = r.get("container_stats", {})
         at_connect = stats.get("at_connect", {})
         after_run = stats.get("after_run", {})
+        img_size = r.get("image_size", {}).get("display", "—")
 
         ram_init = extract_ram(at_connect.get("mem_usage"))
         ram_peak = extract_ram(after_run.get("mem_usage"))
@@ -110,6 +103,7 @@ def build_markdown(reports: list[dict]) -> str:
 
         row2 = [
             r.get("service", "?"),
+            img_size,
             f"`{r.get('transport', '—')}`",
             str(r.get("connect_time_ms", "—")),
             str(summary.get("avg_nav_ms", "—")),
