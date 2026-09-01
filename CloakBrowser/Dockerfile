@@ -4,7 +4,7 @@ FROM ${BASE_IMAGE}
 ENV PORT=7860
 WORKDIR /app
 
-RUN echo "deb http://deb.debian.org/debian trixie contrib" >> /etc/apt/sources.list.d/contrib.list && \
+RUN echo "deb http://deb.debian.org/debian bookworm contrib" > /etc/apt/sources.list.d/contrib.list && \
     echo "ttf-mscorefonts-installer msttcorefonts/accepted-mscorefonts-eula select true" | debconf-set-selections && \
     apt-get update >/dev/null && apt-get install -y --no-install-recommends \
     git \
@@ -17,12 +17,10 @@ RUN echo "deb http://deb.debian.org/debian trixie contrib" >> /etc/apt/sources.l
     libgdk-pixbuf-2.0-0 libxss1 libxtst6 \
     fonts-unifont fonts-freefont-ttf \
     fonts-ipafont-gothic fonts-wqy-zenhei fonts-tlwg-loma-otf \
+    ttf-mscorefonts-installer \
     libgl1-mesa-dri libegl-mesa0 \
-    xclip ffmpeg unzip privoxy ttf-mscorefonts-installer >/dev/null && \
-    curl -fsSL https://deb.nodesource.com/setup_20.x | bash - && \
-    apt-get install -y --no-install-recommends nodejs >/dev/null && \
+    xclip ffmpeg unzip >/dev/null && \
     ln -sf /app/.venv/bin/* /usr/local/bin/ && \
-    pip install --no-cache-dir playwright >/dev/null && playwright install-deps chromium 2>/dev/null || true && pip uninstall -y playwright >/dev/null && \
     pip install --no-cache-dir cloakbrowser[serve,geoip] >/dev/null && \
     mkdir -p ~/.cloakbrowser && touch ~/.cloakbrowser/.welcome_show && \
     find /app/.venv -path "*/cloakbrowser/download.py" -exec sed -i 's/logger.info/logger.debug/g' {} + && \
@@ -31,7 +29,6 @@ RUN echo "deb http://deb.debian.org/debian trixie contrib" >> /etc/apt/sources.l
     sed -i 's/level=logging.INFO/level=logging.WARNING/g' /app/.venv/bin/cloakserve && \
     sed -i '/logger = logging.getLogger("cloakserve")/a logger.setLevel(logging.INFO)' /app/.venv/bin/cloakserve && \
     sed -i 's/"--disable-extensions",//g' /app/.venv/bin/cloakserve && \
-    /app/chrome-extensions.sh && rm /app/chrome-extensions.sh && \
     chmod +x /app/.venv/bin/cloakserve && fc-cache -f && rm -rf /var/lib/apt/lists/* /root/.cache/* && \
     find /root/.cloakbrowser -name "chromedriver" -delete || true && \
     find /root/.cloakbrowser/Locales -type f -name "*.pak" ! -name "en-US.pak" ! -name "ru.pak" -delete || true && \
@@ -47,7 +44,6 @@ export DISPLAY=:99
 
 Xvfb :99 -screen 0 1920x1080x24 -nolisten tcp &
 
-# ждём, пока Xvfb реально начнёт принимать соединения
 for i in $(seq 1 20); do
     if xdpyinfo -display :99 >/dev/null 2>&1; then
         echo "Xvfb готов (попытка $i)"

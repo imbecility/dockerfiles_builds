@@ -7,10 +7,7 @@ on:
         description: 'сервис для бенчмарка (all / Camoufox / ClearcoteBrowser / CloakBrowser / FortressBrowser / RayobrowseBrowser / ShellRight)'
         required: false
         default: 'all'
-  schedule:
-    # раз в неделю по воскресеньям в 03:00 UTC
-    - cron: '0 3 * * 0'
-  # запускать автоматически после успешной публикации образов
+  # запускать автоматически после успешного завершения сборки
   workflow_run:
     workflows: ["Dynamic Build, Optimize and Publish"]
     types: [completed]
@@ -20,7 +17,7 @@ env:
 
 jobs:
   setup-matrix:
-    if: ${{ github.event.workflow_run.conclusion == 'success' || github.event_name != 'workflow_run' }}
+    if: ${{ github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'success' }}
     runs-on: ubuntu-latest
     outputs:
       matrix: ${{ steps.set-matrix.outputs.matrix }}
@@ -46,7 +43,7 @@ jobs:
 
   benchmark:
     needs: setup-matrix
-    if: ${{ needs.setup-matrix.outputs.matrix != '[]' }}
+    if: ${{ needs.setup-matrix.result == 'success' && needs.setup-matrix.outputs.matrix != '[]' && needs.setup-matrix.outputs.matrix != '' }}
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
@@ -132,7 +129,8 @@ jobs:
 
   update-readme:
     needs: benchmark
-    if: always()
+    # только если бенчмарк реально выполнялся (не был пропущен) и не был отменен вручную
+    if: ${{ !cancelled() && needs.benchmark.result != 'skipped' }}
     runs-on: ubuntu-latest
     permissions:
       contents: write

@@ -16,7 +16,6 @@ RUN apt-get update >/dev/null && apt-get install -y --no-install-recommends \
     mkdir -p /opt/xdg-cache && \
     pip install --no-cache-dir clearcote >/dev/null && \
     python -c "from clearcote import download; print('binary:', download())" >/dev/null && \
-    /app/chrome-extensions.sh && rm /app/chrome-extensions.sh && \
     useradd -m -u 10001 cc && chown -R cc /opt/xdg-cache /app && \
     chmod 755 /root && chmod -R a+rX /root/.local && \
     rm -rf /var/lib/apt/lists/*

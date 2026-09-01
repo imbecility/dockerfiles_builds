@@ -15,8 +15,6 @@ RUN apt-get update >/dev/null && apt-get install -y --no-install-recommends \
     libexpat1 libdbus-1-3 libgl1-mesa-dri libegl-mesa0 >/dev/null && \
     useradd -m -u 1000 tilion && \
     mkdir -p /home/tilion /tmp/tilion-profile /opt/tilion && \
-    pip install --no-cache-dir tilion-fortress >/dev/null && \
-    /app/chrome-extensions.sh && rm /app/chrome-extensions.sh && \
     rm -rf /var/lib/apt/lists/*
 
 # /opt из upstream во временную директорию
@@ -32,8 +30,7 @@ RUN rm -rf /opt/tilion && \
     if [ ! -f /opt/tilion/tilion ] && [ -f /opt/tilion/tillion ]; then ln -sf /opt/tilion/tillion /opt/tilion/tilion; fi && \
     chmod -R 755 /opt/tilion && \
     chown -R tilion:tilion /home/tilion /tmp/tilion-profile /app/extensions /opt/tilion && \
-    chmod -R 777 /tmp/tilion-profile /home/tilion && \
-    ls -la /opt/tilion
+    chmod -R 777 /tmp/tilion-profile /home/tilion
 
 COPY --chmod=755 <<-"EOF" /app/start.sh
 #!/bin/bash

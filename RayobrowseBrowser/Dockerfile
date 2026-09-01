@@ -24,10 +24,9 @@ RUN apt-get update >/dev/null && apt-get install -y --no-install-recommends \
     libpango-1.0-0 libcairo2 libasound2 libxshmfence1 libglib2.0-0 \
     libgl1-mesa-dri libegl-mesa0 fonts-unifont fonts-wqy-zenhei dbus passwd \
     gosu unzip zstd tar procps ca-certificates >/dev/null && \
-    mkdir -p /home/browser /data/data /data/cache /data/logs /app/extensions /var/run/dbus && \
+    mkdir -p /home/browser /data/data /data/cache /data/logs /var/run/dbus && \
     (useradd -m -u 1000 -d /home/browser -s /bin/bash browser 2>/dev/null || true) && \
     dbus-uuidgen > /etc/machine-id 2>/dev/null || true && \
-    /app/chrome-extensions.sh && rm /app/chrome-extensions.sh && \
     rm -rf /var/lib/apt/lists/*
 
 COPY --from=rayobrowse_upstream /usr/local /usr/local

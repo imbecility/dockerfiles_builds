@@ -34,7 +34,7 @@ EOF
     pkill -9 -x dnsmasq 2>/dev/null || true
     # stderr в лог, чтобы увидеть причину падения, если оно произойдет.
     dnsmasq --conf-file="$DNSMASQ_CONF" 2>&1 | tee /tmp/dnsmasq_startup.log &
-    sleep 3
+    sleep 1
 
     if ! pgrep "dnsmasq" > /dev/null; then
         echo "[dns-sinkhole] ОШИБКА: процесс dnsmasq не найден после запуска!"
@@ -80,22 +80,6 @@ PYEOF
     if [ "$DNS_READY" -eq 0 ]; then
         echo "[dns-sinkhole] WARN: dnsmasq не ответил за отведённое время — продолжаем" >&2
     fi
-
-    # Ожидание готовности DNS
-    DNS_READY=false
-    for i in $(seq 1 30); do
-        if /app/.venv/bin/python -c "import socket; s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM); s.connect(('127.0.0.1', 53)); s.close()" 2>/dev/null; then
-            echo "[dns-sinkhole] dnsmasq успешно слушает порт 53"
-            DNS_READY=true
-            break
-        fi
-        sleep 0.2
-    done
-
-    if [ "$DNS_READY" = false ]; then
-        echo "[dns-sinkhole] ОШИБКА: dnsmasq не отвечает на порту 53. Интернет будет недоступен!"
-    fi
-
     # Фоновое обновление базы
     if [ "$REFRESH_HOURS" -gt 0 ] 2>/dev/null; then
         (

@@ -1,3 +1,4 @@
+# ./Camoufox/Dockerfile
 ARG BASE_IMAGE=base:latest
 FROM ${BASE_IMAGE}
 
@@ -18,7 +19,7 @@ RUN apt-get update >/dev/null && apt-get install -y --no-install-recommends \
     libgdk-pixbuf-2.0-0 libxss1 libxtst6 \
     libgl1-mesa-dri libegl-mesa0 >/dev/null && \
     mkdir -p /root/.camoufox && \
-    pip install --no-cache-dir playwright >/dev/null && playwright install-deps firefox 2>/dev/null || true && pip uninstall -y playwright >/dev/null && \
+    rm -rf /app/extensions && \
     pip install --no-cache-dir "camoufox[geoip]" browserforge >/dev/null && \
     camoufox fetch >/dev/null && rm -rf /var/lib/apt/lists/*
 
@@ -32,7 +33,6 @@ export DISPLAY=:99
 
 Xvfb :99 -screen 0 1920x1080x24 -nolisten tcp &
 
-# ждём, пока Xvfb реально начнёт принимать соединения
 for i in $(seq 1 20); do
     if xdpyinfo -display :99 >/dev/null 2>&1; then
         echo "Xvfb готов (попытка $i)"
@@ -49,5 +49,6 @@ PORT="${PORT:-7861}"
 echo -e "\n==================================\nstarting firefox remote server...\nconnect:\nwith sync_playwright() as p:\n    browser = p.firefox.connect('ws://localhost:${PORT}/camoufox')\n==================================\n"
 exec python /app/server.py
 EOF
+
 EXPOSE ${PORT}
 CMD ["/bin/bash", "/app/start.sh"]
