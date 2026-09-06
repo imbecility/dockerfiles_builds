@@ -18,11 +18,11 @@
 
 | Сервис | Образ (сжат / диск) | Транспорт | Connect (ms) | Avg Nav (ms) | RAM (Старт) | RAM (Пик) | CPU (Пик) |
 |---|---|---|---|---|---|---|---|
-| Camoufox | 953.4 MB / 1.82 GB | `ws` | 34 | 7727 | 338.4MiB | 697.7MiB | 14.30% |
-| ClearcoteBrowser | 355.2 MB / 829.8 MB | `cdp` | 285 | 8348 | 1.191GiB | 1.343GiB | 115.59% |
-| CloakBrowser | 411.5 MB / 1.08 GB | `cdp` | 4470 | 8033 | 808.8MiB | 1.255GiB | 100.51% |
-| FortressBrowser | 375.9 MB / 1010.7 MB | `cdp` | 239 | 7408 | 1.15GiB | 1.185GiB | 41.45% |
-| RayobrowseBrowser | 2.24 GB / 4.51 GB | `cdp` | 49590 | 7482 | 734.2MiB | 1.179GiB | 28.69% |
-| ShellRight | 159.3 MB / 351.8 MB | `cdp` | 70 | 7340 | 76.78MiB | 182.4MiB | 0.63% |
+| Camoufox | 953.4 MB / 1.82 GB | `ws` | 25 | 7578 | 344.5MiB | 695.8MiB | 19.54% |
+| ClearcoteBrowser | 355.2 MB / 829.8 MB | `cdp` | 467 | 8616 | 1.232GiB | 1.353GiB | 99.40% |
+| CloakBrowser | 411.5 MB / 1.08 GB | `cdp` | 5310 | 8258 | 867.8MiB | 1.234GiB | 97.53% |
+| FortressBrowser | 375.9 MB / 1010.7 MB | `cdp` | 193 | 7683 | 1.137GiB | 1.194GiB | 46.51% |
+| RayobrowseBrowser | 2.24 GB / 4.51 GB | `cdp` | 49407 | 7310 | 735.8MiB | 1.165GiB | 46.08% |
+| ShellRight | 159.3 MB / 351.8 MB | `cdp` | 76 | 7011 | 78.86MiB | 184.9MiB | 0.66% |
 
 <!-- BENCHMARK_TABLE_END -->
