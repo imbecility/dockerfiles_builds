@@ -8,9 +8,9 @@
 | Сервис | Pass Rate | stealth-probe | Sannysoft | Incolumitas | BrowserScan | DeviceAndBrowserInfo | reCAPTCHA v3 |
 |---|---|---|---|---|---|---|---|
 | Camoufox | 5/6 (83%) | ❌ | ✅ (0.982) | ✅ (0.969) | ✅ (1.0) | ✅ | ✅ (0.9) |
-| ClearcoteBrowser | 5/6 (83%) | ✅ | ✅ (1.0) | ✅ (1.0) | ✅ (1.0) | ❌ | ✅ (0.9) |
+| ClearcoteBrowser | 6/6 (100%) | ✅ | ✅ (1.0) | ✅ (1.0) | ✅ (1.0) | ✅ | ✅ (0.9) |
 | CloakBrowser | 5/6 (83%) | ✅ | ✅ (1.0) | ✅ (1.0) | ✅ (1.0) | ❌ | ✅ (0.9) |
-| FortressBrowser | 5/6 (83%) | ✅ | ✅ (1.0) | ✅ (1.0) | ✅ (1.0) | ❌ | ✅ (0.9) |
+| FortressBrowser | 5/6 (83%) | ✅ | ✅ (0.982) | ✅ (0.971) | ✅ (1.0) | ❌ | ✅ (0.9) |
 | RayobrowseBrowser | 5/6 (83%) | ✅ | ✅ (1.0) | ✅ (1.0) | ✅ (1.0) | ❌ | ✅ (0.9) |
 | ShellRight | 5/6 (83%) | ✅ | ✅ (1.0) | ✅ (0.972) | ✅ (1.0) | ❌ | ✅ (0.9) |
 
@@ -18,11 +18,11 @@
 
 | Сервис | Образ (сжат / диск) | Транспорт | Connect (ms) | Avg Nav (ms) | RAM (Старт) | RAM (Пик) | CPU (Пик) |
 |---|---|---|---|---|---|---|---|
-| Camoufox | 953.4 MB / 1.82 GB | `ws` | 24 | 7458 | 345.8MiB | 715.1MiB | 12.61% |
-| ClearcoteBrowser | 355.2 MB / 829.8 MB | `cdp` | 586 | 8258 | 1.197GiB | 1.384GiB | 119.27% |
-| CloakBrowser | 411.5 MB / 1.08 GB | `cdp` | 5427 | 8254 | 893.1MiB | 1.252GiB | 95.50% |
-| FortressBrowser | 375.9 MB / 1010.7 MB | `cdp` | 220 | 7882 | 1.098GiB | 1.181GiB | 38.55% |
-| RayobrowseBrowser | 2.24 GB / 4.51 GB | `cdp` | 50324 | 7796 | 826.7MiB | 1.183GiB | 43.18% |
-| ShellRight | 159.5 MB / 351.7 MB | `cdp` | 55 | 7032 | 77.14MiB | 167.7MiB | 0.58% |
+| Camoufox | 953.4 MB / 1.82 GB | `ws` | 27 | 7560 | 343.5MiB | 681.1MiB | 22.34% |
+| ClearcoteBrowser | 355.2 MB / 829.8 MB | `cdp` | 368 | 8339 | 1.228GiB | 1.339GiB | 124.88% |
+| CloakBrowser | 411.5 MB / 1.08 GB | `cdp` | 5094 | 7993 | 803.9MiB | 1.255GiB | 87.56% |
+| FortressBrowser | 375.9 MB / 1010.7 MB | `cdp` | 442 | 7460 | 1.129GiB | 1.207GiB | 59.54% |
+| RayobrowseBrowser | 2.24 GB / 4.51 GB | `cdp` | 47060 | 7425 | 512.2MiB | 1.167GiB | 38.11% |
+| ShellRight | 159.5 MB / 351.7 MB | `cdp` | 69 | 7479 | 79.04MiB | 170.5MiB | 0.65% |
 
 <!-- BENCHMARK_TABLE_END -->
