@@ -8,8 +8,8 @@
 | Сервис | Pass Rate | stealth-probe | Sannysoft | Incolumitas | BrowserScan | DeviceAndBrowserInfo | reCAPTCHA v3 |
 |---|---|---|---|---|---|---|---|
 | Camoufox | 5/6 (83%) | ❌ | ✅ (0.982) | ✅ (0.969) | ✅ (1.0) | ✅ | ✅ (0.9) |
-| ClearcoteBrowser | 5/6 (83%) | ✅ | ✅ (1.0) | ✅ (1.0) | ✅ (1.0) | ❌ | ✅ (0.9) |
-| CloakBrowser | 5/6 (83%) | ✅ | ✅ (1.0) | ✅ (1.0) | ✅ (1.0) | ❌ | ✅ (0.9) |
+| ClearcoteBrowser | 6/6 (100%) | ✅ | ✅ (1.0) | ✅ (1.0) | ✅ (1.0) | ✅ | ✅ (0.9) |
+| CloakBrowser | 6/6 (100%) | ✅ | ✅ (1.0) | ✅ (1.0) | ✅ (1.0) | ✅ | ✅ (0.9) |
 | FortressBrowser | 5/6 (83%) | ✅ | ✅ (1.0) | ✅ (1.0) | ✅ (1.0) | ❌ | ✅ (0.9) |
 | RayobrowseBrowser | 5/6 (83%) | ✅ | ✅ (1.0) | ✅ (1.0) | ✅ (1.0) | ❌ | ✅ (0.9) |
 | ShellRight | 5/6 (83%) | ✅ | ✅ (1.0) | ✅ (0.972) | ✅ (1.0) | ❌ | ✅ (0.9) |
@@ -18,11 +18,11 @@
 
 | Сервис | Образ (сжат / диск) | Транспорт | Connect (ms) | Avg Nav (ms) | RAM (Старт) | RAM (Пик) | CPU (Пик) |
 |---|---|---|---|---|---|---|---|
-| Camoufox | 953.4 MB / 1.82 GB | `ws` | 31 | 7609 | 339.4MiB | 689.9MiB | 12.05% |
-| ClearcoteBrowser | 355.2 MB / 829.8 MB | `cdp` | 187 | 7997 | 1.267GiB | 1.351GiB | 132.94% |
-| CloakBrowser | 411.5 MB / 1.08 GB | `cdp` | 4926 | 7966 | 833.4MiB | 1.269GiB | 373.41% |
-| FortressBrowser | 375.9 MB / 1010.7 MB | `cdp` | 247 | 7708 | 1.124GiB | 1.181GiB | 49.96% |
-| RayobrowseBrowser | 2.24 GB / 4.51 GB | `cdp` | 55615 | 7438 | 755.8MiB | 1.147GiB | 35.31% |
-| ShellRight | 159.5 MB / 351.7 MB | `cdp` | 79 | 7170 | 78.86MiB | 167.8MiB | 0.68% |
+| Camoufox | 953.4 MB / 1.82 GB | `ws` | 30 | 7839 | 366.5MiB | 656.2MiB | 24.48% |
+| ClearcoteBrowser | 355.2 MB / 829.8 MB | `cdp` | 438 | 9156 | 1.088GiB | 1.371GiB | 103.52% |
+| CloakBrowser | 411.5 MB / 1.08 GB | `cdp` | 1798 | 8028 | 589.1MiB | 1.281GiB | 78.58% |
+| FortressBrowser | 375.9 MB / 1010.7 MB | `cdp` | 206 | 7592 | 1.189GiB | 1.185GiB | 45.58% |
+| RayobrowseBrowser | 2.24 GB / 4.51 GB | `cdp` | 50053 | 7660 | 782MiB | 1.14GiB | 26.83% |
+| ShellRight | 159.5 MB / 351.7 MB | `cdp` | 68 | 7199 | 82.62MiB | 174.3MiB | 0.56% |
 
 <!-- BENCHMARK_TABLE_END -->
