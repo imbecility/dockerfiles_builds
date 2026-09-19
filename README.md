@@ -9,7 +9,7 @@
 |---|---|---|---|---|---|---|---|
 | Camoufox | 5/6 (83%) | ❌ | ✅ (0.982) | ✅ (0.969) | ✅ (1.0) | ✅ | ✅ (0.9) |
 | ClearcoteBrowser | 5/6 (83%) | ✅ | ✅ (1.0) | ✅ (1.0) | ✅ (1.0) | ❌ | ✅ (0.9) |
-| CloakBrowser | 6/6 (100%) | ✅ | ✅ (1.0) | ✅ (1.0) | ✅ (1.0) | ✅ | ✅ (0.9) |
+| CloakBrowser | 5/6 (83%) | ✅ | ✅ (1.0) | ✅ (1.0) | ✅ (1.0) | ❌ | ✅ (0.9) |
 | FortressBrowser | 5/6 (83%) | ✅ | ✅ (1.0) | ✅ (1.0) | ✅ (1.0) | ❌ | ✅ (0.9) |
 | RayobrowseBrowser | 5/6 (83%) | ✅ | ✅ (1.0) | ✅ (1.0) | ✅ (1.0) | ❌ | ✅ (0.9) |
 | ShellRight | 5/6 (83%) | ✅ | ✅ (1.0) | ✅ (0.972) | ✅ (1.0) | ❌ | ✅ (0.9) |
@@ -18,11 +18,11 @@
 
 | Сервис | Образ (сжат / диск) | Транспорт | Connect (ms) | Avg Nav (ms) | RAM (Старт) | RAM (Пик) | CPU (Пик) |
 |---|---|---|---|---|---|---|---|
-| Camoufox | 953.4 MB / 1.82 GB | `ws` | 36 | 8056 | 371.5MiB | 733.7MiB | 20.79% |
-| ClearcoteBrowser | 355.3 MB / 829.9 MB | `cdp` | 352 | 8692 | 1.189GiB | 1.364GiB | 83.34% |
-| CloakBrowser | 411.5 MB / 1.08 GB | `cdp` | 4495 | 7918 | 779.6MiB | 1.265GiB | 98.50% |
-| FortressBrowser | 375.9 MB / 1010.7 MB | `cdp` | 467 | 7674 | 1.126GiB | 1.19GiB | 55.03% |
-| RayobrowseBrowser | 2.24 GB / 4.51 GB | `cdp` | 49417 | 7433 | 743.6MiB | 1.202GiB | 43.91% |
-| ShellRight | 159.5 MB / 351.7 MB | `cdp` | 77 | 7136 | 80.96MiB | 172.7MiB | 0.00% |
+| Camoufox | 953.4 MB / 1.82 GB | `ws` | 34 | 8029 | 360.6MiB | 710.8MiB | 19.77% |
+| ClearcoteBrowser | 355.3 MB / 829.9 MB | `cdp` | 264 | 8394 | 1.22GiB | 1.337GiB | 81.97% |
+| CloakBrowser | 411.5 MB / 1.08 GB | `cdp` | 4351 | 7680 | 1.008GiB | 1.259GiB | 81.45% |
+| FortressBrowser | 375.9 MB / 1010.7 MB | `cdp` | 156 | 7824 | 1.092GiB | 1.194GiB | 42.34% |
+| RayobrowseBrowser | 2.24 GB / 4.51 GB | `cdp` | 49811 | 7647 | 773.8MiB | 1.178GiB | 41.77% |
+| ShellRight | 159.5 MB / 351.7 MB | `cdp` | 43 | 7273 | 81.25MiB | 168.7MiB | 0.66% |
 
 <!-- BENCHMARK_TABLE_END -->
