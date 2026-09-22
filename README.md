@@ -8,21 +8,21 @@
 | Сервис | Pass Rate | stealth-probe | Sannysoft | Incolumitas | BrowserScan | DeviceAndBrowserInfo | reCAPTCHA v3 |
 |---|---|---|---|---|---|---|---|
 | Camoufox | 5/6 (83%) | ❌ | ✅ (0.982) | ✅ (0.969) | ✅ (1.0) | ✅ | ✅ (0.9) |
-| ClearcoteBrowser | 5/6 (83%) | ✅ | ✅ (1.0) | ✅ (1.0) | ✅ (1.0) | ❌ | ✅ (0.9) |
-| CloakBrowser | 6/6 (100%) | ✅ | ✅ (1.0) | ✅ (1.0) | ✅ (1.0) | ✅ | ✅ (0.9) |
-| FortressBrowser | 5/6 (83%) | ✅ | ✅ (1.0) | ✅ (1.0) | ✅ (1.0) | ❌ | ✅ (0.9) |
+| ClearcoteBrowser | 6/6 (100%) | ✅ | ✅ (1.0) | ✅ (1.0) | ✅ (1.0) | ✅ | ✅ (0.9) |
+| CloakBrowser | 5/6 (83%) | ✅ | ✅ (1.0) | ✅ (1.0) | ✅ (1.0) | ❌ | ✅ (0.9) |
+| FortressBrowser | 5/6 (83%) | ✅ | ✅ (0.982) | ✅ (0.972) | ✅ (1.0) | ❌ | ✅ (0.9) |
 | RayobrowseBrowser | 5/6 (83%) | ✅ | ✅ (1.0) | ✅ (1.0) | ✅ (1.0) | ❌ | ✅ (0.9) |
-| ShellRight | 6/6 (100%) | ✅ | ✅ (1.0) | ✅ (0.972) | ✅ (1.0) | ✅ | ✅ (0.9) |
+| ShellRight | 5/6 (83%) | ✅ | ✅ (1.0) | ✅ (0.972) | ✅ (1.0) | ❌ | ✅ (0.9) |
 
 ### ⚡ Производительность и ресурсы
 
 | Сервис | Образ (сжат / диск) | Транспорт | Connect (ms) | Avg Nav (ms) | RAM (Старт) | RAM (Пик) | CPU (Пик) |
 |---|---|---|---|---|---|---|---|
-| Camoufox | 953.4 MB / 1.82 GB | `ws` | 34 | 7617 | 334.2MiB | 631.5MiB | 22.96% |
-| ClearcoteBrowser | 355.3 MB / 829.9 MB | `cdp` | 366 | 8196 | 1.15GiB | 1.361GiB | 93.76% |
-| CloakBrowser | 411.5 MB / 1.08 GB | `cdp` | 2035 | 7991 | 572.9MiB | 1.31GiB | 92.02% |
-| FortressBrowser | 375.9 MB / 1010.7 MB | `cdp` | 153 | 7794 | 1.105GiB | 1.222GiB | 66.92% |
-| RayobrowseBrowser | 2.24 GB / 4.51 GB | `cdp` | 50259 | 7681 | 817.2MiB | 1.18GiB | 33.35% |
-| ShellRight | 159.5 MB / 351.7 MB | `cdp` | 62 | 7381 | 80.9MiB | 168.5MiB | 0.00% |
+| Camoufox | 953.4 MB / 1.82 GB | `ws` | 32 | 7827 | 366.9MiB | 707.6MiB | 19.02% |
+| ClearcoteBrowser | 355.3 MB / 829.9 MB | `cdp` | 202 | 8216 | 1.181GiB | 1.306GiB | 99.45% |
+| CloakBrowser | 411.5 MB / 1.08 GB | `cdp` | 5401 | 8168 | 877.5MiB | 1.258GiB | 109.85% |
+| FortressBrowser | 375.9 MB / 1010.7 MB | `cdp` | 134 | 7530 | 1.187GiB | 1.219GiB | 42.35% |
+| RayobrowseBrowser | 2.24 GB / 4.51 GB | `cdp` | 50131 | 7364 | 784.3MiB | 1.191GiB | 18.33% |
+| ShellRight | 160.3 MB / 353.3 MB | `cdp` | 68 | 7027 | 81.16MiB | 173.9MiB | 0.00% |
 
 <!-- BENCHMARK_TABLE_END -->
